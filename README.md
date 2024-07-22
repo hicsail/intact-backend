@@ -10,6 +10,9 @@ This is the backend server for INTACT. It uses FastAPI and MongoDB.
 
 (or equivalent)
 
+Recommended: Set up your IDE or a pre-commit hook to Blacken files automatically.
+Otherwise, remember to Blacken everything manually before committing.
+
 Run in development mode:
 `fastapi dev`
 
