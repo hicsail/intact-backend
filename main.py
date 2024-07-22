@@ -2,10 +2,11 @@ import datetime
 import enum
 from typing import Union
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pymongo import MongoClient
+from pymongo.database import Database
 
 
 class Settings(BaseSettings):
@@ -23,42 +24,34 @@ app = FastAPI()
 
 client = MongoClient(settings.db_connection_str)
 
-try:
-    database = client.get_database(settings.db_name)
-    mangoes = database.get_collection("mangoes")
 
-    query = {"color": "red"}
-    mango = mangoes.find_one(query)
-
-    print(f"Your red mango is: {mango}")
-
-    client.close()
-
-except Exception as e:
-    raise Exception("Unable to find the document due to the following error: ", e)
+# Dependency for managing db connections
+def get_db():
+    db = client.get_database(settings.db_name)
+    try:
+        yield db
+    finally:
+        client.close()
 
 
-# Should we use Enums?
-class StudyType(enum.Enum):
-    BASELINE = 1
-    FOLLOWUP = 2
+class StudyType(enum.StrEnum):
+    BASELINE = "baseline"
+    FOLLOWUP = "followup"
 
 
-class StudyStatus(enum.Enum):
-    NOT_STARTED = 1
-    IN_PROGRESS = 2
-    COMPLETE = 3
+class StudyStatus(enum.StrEnum):
+    NOT_STARTED = "not-started"
+    IN_PROGRESS = "in-progress"
+    COMPLETE = "complete"
 
 
-# Or maybe these should be StrEnums.
 class TestType(enum.StrEnum):
-    IMMEDIATE_RECALL = enum.auto()
-    # If we care about underscores in python vs dashes in the csv:
+    IMMEDIATE_RECALL = "immediate-recall"
     DELAYED_RECALL = "delayed-recall"
-    CHOICE_REACTION_TIME = enum.auto()
-    VISUAL_PAIRED_ASSOCIATES = enum.auto()
-    DIGIT_SYMBOL_MATCHING = enum.auto()
-    SPATIAL_MEMORY = enum.auto()
+    CHOICE_REACTION_TIME = "choice-reaction-time"
+    VISUAL_PAIRED_ASSOCIATES = "visual-paired-associates"
+    DIGIT_SYMBOL_MATCHING = "digit-symbol-matching"
+    SPATIAL_MEMORY = "spatial-memory"
 
 
 class Study(BaseModel):
@@ -71,17 +64,12 @@ class Study(BaseModel):
 
 
 class Test(BaseModel):
-    study: Study
+    # study: Study
+    study_id: str
     time_started: datetime.datetime
     device_info: str
     test_type: TestType
     notes: Union[str, None] = None
-
-
-class Item(BaseModel):
-    name: str
-    price: float
-    is_offer: Union[bool, None] = None
 
 
 @app.get("/")
@@ -89,11 +77,12 @@ def read_root():
     return {"Hello": "World"}
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
-
-
-@app.put("/items/{item_id}")
-def update_item(item_id: int, item: Item):
-    return {"item_name": item.name, "item_id": item_id}
+@app.post("/tests/")
+def insert_test(test: Test, db: Database = Depends(get_db)):
+    # TODO: Check test.study_id and update corresponding Study
+    try:
+        tests = db.get_collection("tests")
+        tests.insert_one(test.dict())
+        return test.dict()
+    except Exception as e:
+        raise Exception("Unable to insert test: ", e)
