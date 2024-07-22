@@ -1,12 +1,12 @@
 import datetime
 import enum
+from contextlib import asynccontextmanager
 from typing import Union
 
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pymongo import MongoClient
-from pymongo.database import Database
 
 
 class Settings(BaseSettings):
@@ -20,18 +20,22 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-app = FastAPI()
 
 client = MongoClient(settings.db_connection_str)
+db = client.get_database(settings.db_name)
 
 
-# Dependency for managing db connections
-def get_db():
-    db = client.get_database(settings.db_name)
-    try:
-        yield db
-    finally:
-        client.close()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    A MongoClient is a pool of db connections, so is shared across requests.
+    This lifespan context manager closes the client on app shutdown.
+    """
+    yield
+    client.close()
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 class StudyType(enum.StrEnum):
@@ -78,7 +82,7 @@ def read_root():
 
 
 @app.post("/tests/")
-def insert_test(test: Test, db: Database = Depends(get_db)):
+def insert_test(test: Test):
     # TODO: Check test.study_id and update corresponding Study
     try:
         tests = db.get_collection("tests")
