@@ -12,6 +12,7 @@ python = "^3.10"
 fastapi = "^0.111.1"
 pymongo = "^4.8.0"
 pydantic-settings = "^2.3.4"
+python-multipart = "^0.0.9"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"

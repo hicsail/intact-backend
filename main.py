@@ -1,9 +1,10 @@
 import datetime
 import enum
+from bson.objectid import ObjectId
 from contextlib import asynccontextmanager
-from typing import Union
+from typing import Annotated, Union
 
-from fastapi import FastAPI
+from fastapi import FastAPI, File, Response, status
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pymongo import MongoClient
@@ -63,11 +64,12 @@ class Study(BaseModel):
     participant_id: str
     url: str
     study_type: StudyType
-    status: StudyStatus
+    study_status: StudyStatus
     combined_score: float
 
 
 class Test(BaseModel):
+    test_id: str
     # study: Study
     study_id: str
     time_started: datetime.datetime
@@ -79,6 +81,92 @@ class Test(BaseModel):
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
+
+
+@app.post("/studies/")
+def create_studies_from_list(
+    participant_ids: list[str],
+    baselines_per_participant: int = 1,
+    followups_per_participant: int = 1,
+):
+    """
+    Given a list of alphanumeric participant IDs, generate and return a list of studies with corresponding URLs.
+    If baselines_per_participant or followups_per_participant is specified (default 1),
+    generate that many baseline or followup studies per participant.
+
+    (If it turns out we do not want to track participant IDs and do not want to link baselines to followups,
+    then just give this endpoint a list of ints, get back a list of study IDs/URLs, and throw out the participant IDs
+    and the baseline/followup column.)
+
+    NB: If this is called more than once, it will generate additional studies (it is not idempotent).
+    """
+    return create_studies(
+        participant_ids, baselines_per_participant, followups_per_participant
+    )
+
+
+@app.post("/studies/upload-file/")
+def create_studies_via_file_upload(
+    participant_ids: Annotated[bytes, File()],
+    response: Response,
+    baselines_per_participant: int = 1,
+    followups_per_participant: int = 1,
+):
+    """
+    Like create_studies, but participant IDs are given via file upload.
+    The uploaded file should contain only a newline-separated list of alphanumeric participant IDs.
+    Blank lines will be ignored.
+    """
+    # Developer note: This uses the File class and not the UploadFile class; it stores the whole file in memory.
+    # This works well for small files. If files get too big, switch to UploadFile.
+
+    rows = str(participant_ids, encoding="utf-8").splitlines()
+    return create_studies(rows, baselines_per_participant, followups_per_participant)
+
+
+def create_studies(
+    participant_ids: list[str], baselines_per_participant, followups_per_participant
+):
+    studies = db.get_collection("studies")
+
+    records_to_insert = []
+    for pid in participant_ids:
+        if len(pid) == 0:
+            # Ignore empty lines, most likely found at end of file.
+            continue
+        if not pid.isalnum():
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return "Non-alphanumeric participant IDs are not allowed"
+
+        for b in range(baselines_per_participant):
+            study_id = ObjectId()
+            records_to_insert.append(
+                {
+                    "_id": study_id,
+                    # TODO: Confirm URL structure
+                    "url": settings.hostname.rstrip("/") + "/" + str(study_id),
+                    "participant_id": pid,
+                    "study_type": StudyType.BASELINE,
+                    "study_status": StudyStatus.NOT_STARTED,
+                }
+            )
+        for f in range(followups_per_participant):
+            study_id = ObjectId()
+            records_to_insert.append(
+                {
+                    "_id": study_id,
+                    # TODO: Confirm URL structure
+                    "url": settings.hostname.rstrip("/") + "/" + str(study_id),
+                    "participant_id": pid,
+                    "study_type": StudyType.FOLLOWUP,
+                    "study_status": StudyStatus.NOT_STARTED,
+                }
+            )
+    try:
+        ins_res = studies.insert_many(records_to_insert)
+        return [str(x) for x in ins_res.inserted_ids]
+    except Exception as e:
+        raise Exception("Unable to complete study generation: ", e)
 
 
 @app.post("/tests/")
