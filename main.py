@@ -46,12 +46,6 @@ class StudyType(enum.StrEnum):
     FOLLOWUP = "followup"
 
 
-class StudyStatus(enum.StrEnum):
-    NOT_STARTED = "not-started"
-    IN_PROGRESS = "in-progress"
-    COMPLETE = "complete"
-
-
 class TestType(enum.StrEnum):
     IMMEDIATE_RECALL = "immediate-recall"
     DELAYED_RECALL = "delayed-recall"
@@ -68,8 +62,6 @@ class Study(BaseModel):
     participant_id: str
     url: str
     study_type: StudyType
-    study_status: StudyStatus
-    combined_score: Union[float, None] = None
 
 
 class VisualPairedAssociatesResult(BaseModel):
@@ -164,7 +156,6 @@ class Test(BaseModel):
     # Let DB maintain _id field; manage test_id separately.
     # No strong reason except it slightly simplifies CSV export by removing the need to rename the field.
     test_id: str
-    # study: Study # Embed or nah?
     study_id: str
     time_started: datetime.datetime
     device_info: str
@@ -172,6 +163,26 @@ class Test(BaseModel):
     # Optional field for potential msgs like "participant timed out" (added by frontend/client) or
     # "could not find study" (added by backend/server) or any other such.
     # (So the server - this codebase - should append to this field, not replace it.)
+    notes: Union[str, None] = None
+    result: Union[
+        VisualPairedAssociatesResult,
+        ChoiceReactionTimeResult,
+        DigitSymbolMatchingResult,
+        ImmediateRecallResult,
+        DelayedRecallResult,
+        SpatialMemoryResult,
+        None,
+    ] = None
+
+
+class TestIn(BaseModel):
+    """
+    The subset of fields of class Test that the user/client is allowed to specify.
+    """
+
+    study_id: str
+    time_started: datetime.datetime
+    device_info: str
     notes: Union[str, None] = None
     result: Union[
         VisualPairedAssociatesResult,
@@ -254,7 +265,6 @@ def create_studies(
                 url=settings.hostname.rstrip("/") + "/" + str(study_id),
                 participant_id=pid,
                 study_type=StudyType.BASELINE,
-                study_status=StudyStatus.NOT_STARTED,
             )
             records_to_insert.append(new_baseline_study.dict())
         for f in range(followups_per_participant):
@@ -265,7 +275,6 @@ def create_studies(
                 url=settings.hostname.rstrip("/") + "/" + str(study_id),
                 participant_id=pid,
                 study_type=StudyType.FOLLOWUP,
-                study_status=StudyStatus.NOT_STARTED,
             )
             records_to_insert.append(new_followup_study.dict())
     try:
@@ -304,12 +313,49 @@ def get_studies_as_csv_file():
 
 
 @app.post("/tests/")
-def insert_test(test: Test):
-    # TODO: Check test.study_id and update corresponding Study
+def insert_test(test: TestIn, response: Response):
+    # Starting from the TestIn fields,
+    new_test_dict = test.dict()
+
+    # infer the test_type...
+    # ("match type(test.result): case xxxResult: blah" complained of name capture. Wow!)
+    if type(test.result) is VisualPairedAssociatesResult:
+        new_test_dict.update({"test_type": TestType.VISUAL_PAIRED_ASSOCIATES})
+    elif type(test.result) is ChoiceReactionTimeResult:
+        new_test_dict.update({"test_type": TestType.CHOICE_REACTION_TIME})
+    elif type(test.result) is DigitSymbolMatchingResult:
+        new_test_dict.update({"test_type": TestType.DIGIT_SYMBOL_MATCHING})
+    elif type(test.result) is ImmediateRecallResult:
+        new_test_dict.update({"test_type": TestType.IMMEDIATE_RECALL})
+    elif type(test.result) is DelayedRecallResult:
+        new_test_dict.update({"test_type": TestType.DELAYED_RECALL})
+    elif type(test.result) is SpatialMemoryResult:
+        new_test_dict.update({"test_type": TestType.SPATIAL_MEMORY})
+    else:
+        # should not get here
+        raise Exception(
+            "Could not infer test type; should have been caught by type validation"
+        )
+
+    # check that the study_id corresponds to an existing study...
+    # (note: does _not_ check for an existing submitted test result of this type for this study)
+    studies = db.get_collection("studies")
+    matched_study = studies.find_one({"study_id": test.study_id})
+    if not matched_study:
+        # Or maybe this should be lenient and add the record anyway?
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return "Could not find study_id"
+
+    # All OK; give it a test_id...
+    new_test_dict.update({"test_id": str(ObjectId())})
+
     try:
         tests = db.get_collection("tests")
-        tests.insert_one(test.dict())
-        return test.dict()
+        # Validate/filter against the Test model
+        validated_test_dict = Test(**new_test_dict).dict()
+        tests.insert_one(validated_test_dict)
+        validated_test_dict.pop("_id")  # Rm _id from returned response
+        return validated_test_dict
     except Exception as e:
         raise Exception("Unable to insert test: ", e)
 
