@@ -72,6 +72,94 @@ class Study(BaseModel):
     combined_score: Union[float, None] = None
 
 
+class VisualPairedAssociatesResult(BaseModel):
+    """
+    - vpa_split_times: Time-to-answer per picture question. Should be length <=20. In... milliseconds? Will put Int for now.
+    - vpa_split_scores: Correct-or-wrong per picture question. Should be length <=20.
+    - vpa_total_score: Number correct out of 20.
+
+    (The split lists will be length <20 when the participant times out before finishing all 20 questions.)
+    """
+
+    vpa_split_times: list[int]
+    vpa_split_scores: list[bool]
+    vpa_total_score: int
+
+
+class ChoiceReactionTimeResult(BaseModel):
+    """
+    - crt_split_times: Reaction-time per question. Variable length. In... milliseconds? Will put Int for now.
+    - crt_split_scores: Correct-or-wrong per question. Variable length.
+    - crt_lefthand_correct: Number of times <left> was the correct answer and participant hit <left>.
+    - crt_lefthand_attempted: Number of times <left> was the correct answer and participant answered something.
+    - crt_righthand_correct: Number of times <right> was the correct answer and participant hit <right>.
+    - crt_righthand_attempted: Number of times <right> was the correct answer and participant answered something.
+    - crt_total_correct: Number of times participant answered correctly.
+    - crt_total_attempted: Number of times participant answered something.
+
+    (The participant will time out after 90 seconds, so the "attempted" counts will vary, and the split lists will vary in length.)
+    """
+
+    crt_split_times: list[int]
+    crt_split_scores: list[bool]
+    crt_lefthand_correct: int
+    crt_lefthand_attempted: int
+    crt_righthand_correct: int
+    crt_righthand_attempted: int
+    crt_total_correct: int
+    crt_total_attempted: int
+
+
+class DigitSymbolMatchingResult(BaseModel):
+    """
+    - dsm_split_times: Reaction-time per question. Variable length. In... milliseconds? Will put Int for now.
+    - dsm_split_scores: Correct-or-wrong per question. Variable length.
+    - dsm_total_correct: Number of times participant answered correctly.
+    - dsm_total_attempted: Number of times participant answered something.
+
+    (The participant will time out after 90 seconds, so the "attempted" count will vary, and the split lists will vary in length.)
+    """
+
+    dsm_split_times: list[int]
+    dsm_split_scores: list[bool]
+    dsm_total_correct: int
+    dsm_total_attempted: int
+
+
+class ImmediateRecallResult(BaseModel):
+    """
+    - ir_split_times: Time-to-answer per attempt. Variable length of 1 or 2. In... milliseconds? Will put Int for now.
+    - ir_score: 2 pts if correct on first attempt, 1 pt if on second attempt, 0 pts if failed both attempts.
+    """
+
+    ir_split_times: list[int]
+    ir_score: int
+
+
+class DelayedRecallResult(BaseModel):
+    """
+    - dr_time: Time-to-answer for the one attempt. In... milliseconds? Will put Int for now.
+    - dr_score: 0-5 pts corresponding to number of animals correctly recalled.
+    """
+
+    dr_time: int
+    dr_score: int
+
+
+class SpatialMemoryResult(BaseModel):
+    """
+    - sm_split_times: Time-to-answer per puzzle. Variable length <=5. In... milliseconds? Will put Int for now.
+    - sm_split_scores: Correct-or-wrong per puzzle. Variable length <=5.
+    - sm_total_correct: 0-5 pts.
+
+    (No total-attempted field because this may be fewer than 5 if participant timed out, but never more than 5.)
+    """
+
+    sm_split_times: list[int]
+    sm_split_scores: list[bool]
+    sm_total_correct: int
+
+
 class Test(BaseModel):
     # Let DB maintain _id field; manage test_id separately.
     # No strong reason except it slightly simplifies CSV export by removing the need to rename the field.
@@ -81,7 +169,19 @@ class Test(BaseModel):
     time_started: datetime.datetime
     device_info: str
     test_type: TestType
+    # Optional field for potential msgs like "participant timed out" (added by frontend/client) or
+    # "could not find study" (added by backend/server) or any other such.
+    # (So the server - this codebase - should append to this field, not replace it.)
     notes: Union[str, None] = None
+    result: Union[
+        VisualPairedAssociatesResult,
+        ChoiceReactionTimeResult,
+        DigitSymbolMatchingResult,
+        ImmediateRecallResult,
+        DelayedRecallResult,
+        SpatialMemoryResult,
+        None,
+    ] = None
 
 
 @app.get("/")
@@ -212,3 +312,43 @@ def insert_test(test: Test):
         return test.dict()
     except Exception as e:
         raise Exception("Unable to insert test: ", e)
+
+
+@app.get("/tests/")
+def get_tests_as_list():
+    tests = db.get_collection("tests")
+    all_tests = tests.find({}, {"_id": 0})  # Exclude _id field
+
+    return [t for t in all_tests]
+
+
+@app.get("/tests/download-file")
+def get_tests_as_csv_file():
+    tests = db.get_collection("tests")
+    all_tests = tests.find({}, {"_id": 0})  # Exclude _id field
+
+    with open("tests.csv", "w", newline="") as csvfile:
+
+        # Get the fieldnames, but throw out the "result" field.
+        fields = Test.model_fields
+        fields.pop("result")
+        fieldnames = fields.keys()
+        # Instead, normalize the result fields into the fieldnames.
+        # (This is why, in the xyzResults class fields, all the field names are prefixed.)
+        fieldnames ^= VisualPairedAssociatesResult.model_fields.keys()
+        fieldnames ^= ChoiceReactionTimeResult.model_fields.keys()
+        fieldnames ^= DigitSymbolMatchingResult.model_fields.keys()
+        fieldnames ^= ImmediateRecallResult.model_fields.keys()
+        fieldnames ^= DelayedRecallResult.model_fields.keys()
+        fieldnames ^= SpatialMemoryResult.model_fields.keys()
+
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        writer.writeheader()
+        # TODO: Also hoist the study info into here
+        for test in all_tests:
+            testresult = test.pop("result")
+            test.update(testresult)
+            writer.writerow(test)
+
+    return FileResponse("tests.csv")
