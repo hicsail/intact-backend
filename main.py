@@ -1,3 +1,4 @@
+import csv
 import datetime
 import enum
 from bson.objectid import ObjectId
@@ -5,6 +6,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Union
 
 from fastapi import FastAPI, File, Response, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pymongo import MongoClient
@@ -179,6 +181,30 @@ def create_studies(
         return records_to_insert
     except Exception as e:
         raise Exception("Unable to complete study generation: ", e)
+
+
+@app.get("/studies/")
+def get_studies_as_list():
+    studies = db.get_collection("studies")
+    all_studies = studies.find({}, {"_id": 0})  # Exclude _id field
+
+    return [s for s in all_studies]
+
+
+@app.get("/studies/download-file")
+def get_studies_as_csv_file():
+    studies = db.get_collection("studies")
+    all_studies = studies.find({}, {"_id": 0})  # Exclude _id field
+
+    with open("studies.csv", "w", newline="") as csvfile:
+        fieldnames = Study.model_fields.keys()
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        writer.writeheader()
+        for s in all_studies:
+            writer.writerow(s)
+
+    return FileResponse("studies.csv")
 
 
 @app.post("/tests/")
