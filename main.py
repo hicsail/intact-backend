@@ -101,10 +101,6 @@ def create_studies_from_list(
     If baselines_per_participant or followups_per_participant is specified (default 1),
     generate that many baseline or followup studies per participant.
 
-    (If it turns out we do not want to track participant IDs and do not want to link baselines to followups,
-    then just give this endpoint a list of ints, get back a list of study IDs/URLs, and throw out the participant IDs
-    and the baseline/followup column.)
-
     NB: If this is called more than once, it will generate additional studies (it is not idempotent).
     """
     return create_studies(
