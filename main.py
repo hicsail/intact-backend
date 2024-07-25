@@ -60,17 +60,21 @@ class TestType(enum.StrEnum):
 
 
 class Study(BaseModel):
+    # Let DB maintain _id field; manage study_id separately.
+    # No strong reason except it slightly simplifies CSV export by removing the need to rename the field.
     study_id: str
     participant_id: str
     url: str
     study_type: StudyType
     study_status: StudyStatus
-    combined_score: float
+    combined_score: Union[float, None] = None
 
 
 class Test(BaseModel):
+    # Let DB maintain _id field; manage test_id separately.
+    # No strong reason except it slightly simplifies CSV export by removing the need to rename the field.
     test_id: str
-    # study: Study
+    # study: Study # Embed or nah?
     study_id: str
     time_started: datetime.datetime
     device_info: str
@@ -86,6 +90,7 @@ def read_root():
 @app.post("/studies/")
 def create_studies_from_list(
     participant_ids: list[str],
+    response: Response,
     baselines_per_participant: int = 1,
     followups_per_participant: int = 1,
 ):
@@ -101,7 +106,7 @@ def create_studies_from_list(
     NB: If this is called more than once, it will generate additional studies (it is not idempotent).
     """
     return create_studies(
-        participant_ids, baselines_per_participant, followups_per_participant
+        participant_ids, response, baselines_per_participant, followups_per_participant
     )
 
 
@@ -121,11 +126,16 @@ def create_studies_via_file_upload(
     # This works well for small files. If files get too big, switch to UploadFile.
 
     rows = str(participant_ids, encoding="utf-8").splitlines()
-    return create_studies(rows, baselines_per_participant, followups_per_participant)
+    return create_studies(
+        rows, response, baselines_per_participant, followups_per_participant
+    )
 
 
 def create_studies(
-    participant_ids: list[str], baselines_per_participant, followups_per_participant
+    participant_ids: list[str],
+    response,
+    baselines_per_participant,
+    followups_per_participant,
 ):
     studies = db.get_collection("studies")
 
@@ -139,32 +149,34 @@ def create_studies(
             return "Non-alphanumeric participant IDs are not allowed"
 
         for b in range(baselines_per_participant):
-            study_id = ObjectId()
-            records_to_insert.append(
-                {
-                    "_id": study_id,
-                    # TODO: Confirm URL structure
-                    "url": settings.hostname.rstrip("/") + "/" + str(study_id),
-                    "participant_id": pid,
-                    "study_type": StudyType.BASELINE,
-                    "study_status": StudyStatus.NOT_STARTED,
-                }
+            study_id = str(ObjectId())
+            new_baseline_study = Study(
+                study_id=study_id,
+                # TODO: Confirm URL structure
+                url=settings.hostname.rstrip("/") + "/" + str(study_id),
+                participant_id=pid,
+                study_type=StudyType.BASELINE,
+                study_status=StudyStatus.NOT_STARTED,
             )
+            records_to_insert.append(new_baseline_study.dict())
         for f in range(followups_per_participant):
-            study_id = ObjectId()
-            records_to_insert.append(
-                {
-                    "_id": study_id,
-                    # TODO: Confirm URL structure
-                    "url": settings.hostname.rstrip("/") + "/" + str(study_id),
-                    "participant_id": pid,
-                    "study_type": StudyType.FOLLOWUP,
-                    "study_status": StudyStatus.NOT_STARTED,
-                }
+            study_id = str(ObjectId())
+            new_followup_study = Study(
+                study_id=study_id,
+                # TODO: Confirm URL structure
+                url=settings.hostname.rstrip("/") + "/" + str(study_id),
+                participant_id=pid,
+                study_type=StudyType.FOLLOWUP,
+                study_status=StudyStatus.NOT_STARTED,
             )
+            records_to_insert.append(new_followup_study.dict())
     try:
         ins_res = studies.insert_many(records_to_insert)
-        return [str(x) for x in ins_res.inserted_ids]
+        # insert_many adds _id to dicts; remove them.
+        # Tried filtering with FastAPI response model but no dice?
+        for i in records_to_insert:
+            i.pop("_id")
+        return records_to_insert
     except Exception as e:
         raise Exception("Unable to complete study generation: ", e)
 
