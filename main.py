@@ -370,14 +370,17 @@ def get_tests_as_list():
 
 @app.get("/tests/download-file")
 def get_tests_as_csv_file():
+    studies = db.get_collection("studies")
     tests = db.get_collection("tests")
     all_tests = tests.find({}, {"_id": 0})  # Exclude _id field
 
     with open("tests.csv", "w", newline="") as csvfile:
 
-        # Get the fieldnames, but throw out the "result" field.
+        # Get the fieldnames, but throw out the "result" and "study_id" fields.
+        # (The study_id field will get added back in below, along with all the other study fields.)
         fields = Test.model_fields
         fields.pop("result")
+        fields.pop("study_id")
         fieldnames = fields.keys()
         # Instead, normalize the result fields into the fieldnames.
         # (This is why, in the xyzResults class fields, all the field names are prefixed.)
@@ -387,14 +390,19 @@ def get_tests_as_csv_file():
         fieldnames ^= ImmediateRecallResult.model_fields.keys()
         fieldnames ^= DelayedRecallResult.model_fields.keys()
         fieldnames ^= SpatialMemoryResult.model_fields.keys()
+        # Also normalize the study fields into the fieldnames.
+        fieldnames ^= Study.model_fields.keys()
 
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
         writer.writeheader()
-        # TODO: Also hoist the study info into here
         for test in all_tests:
-            testresult = test.pop("result")
-            test.update(testresult)
+            test_result = test.pop("result")
+            test.update(test_result)
+            study_id = test.pop("study_id")
+            study = studies.find_one({"study_id": study_id})
+            study.pop("_id")
+            test.update(study)
             writer.writerow(test)
 
     return FileResponse("tests.csv")
