@@ -8,7 +8,7 @@ services:
   intact-backend:
     # TODO
     # image: intact-backend
-    image: hicsail/intact-backend
+    image: hicsail/intact-backend:main
     ports:
       - "8000:80"
     environment:
