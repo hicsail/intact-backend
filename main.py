@@ -243,6 +243,27 @@ def create_studies(
     baselines_per_participant,
     followups_per_participant,
 ):
+
+    if baselines_per_participant < 0 or followups_per_participant < 0:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "baselines_per_participant and followups_per_participant must be nonnegative"
+            },
+        )
+    if baselines_per_participant == 0 and followups_per_participant == 0:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "At least one of baselines_per_participant and followups_per_participant must be nonzero"
+            },
+        )
+    if len(participant_ids) == 0:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"message": "Received empty participant list"},
+        )
+
     studies = db.get_collection("studies")
 
     records_to_insert = []
