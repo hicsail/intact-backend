@@ -42,17 +42,17 @@ app = FastAPI(lifespan=lifespan)
 
 
 class StudyType(enum.StrEnum):
-    BASELINE = "baseline"
-    FOLLOWUP = "followup"
+    BASELINE = enum.auto()
+    FOLLOWUP = enum.auto()
 
 
 class TestType(enum.StrEnum):
-    IMMEDIATE_RECALL = "immediate-recall"
-    DELAYED_RECALL = "delayed-recall"
-    CHOICE_REACTION_TIME = "choice-reaction-time"
-    VISUAL_PAIRED_ASSOCIATES = "visual-paired-associates"
-    DIGIT_SYMBOL_MATCHING = "digit-symbol-matching"
-    SPATIAL_MEMORY = "spatial-memory"
+    IMMEDIATE_RECALL = enum.auto()
+    DELAYED_RECALL = enum.auto()
+    CHOICE_REACTION_TIME = enum.auto()
+    VISUAL_PAIRED_ASSOCIATES = enum.auto()
+    DIGIT_SYMBOL_MATCHING = enum.auto()
+    SPATIAL_MEMORY = enum.auto()
 
 
 class Study(BaseModel):
