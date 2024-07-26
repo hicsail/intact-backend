@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Union
 
 from fastapi import FastAPI, File, Response, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pymongo import MongoClient
@@ -152,14 +152,14 @@ class SpatialMemoryResult(BaseModel):
     sm_total_correct: int
 
 
-class Test(BaseModel):
-    # Let DB maintain _id field; manage test_id separately.
-    # No strong reason except it slightly simplifies CSV export by removing the need to rename the field.
-    test_id: str
+class TestIn(BaseModel):
+    """
+    The subset of Test fields that the user/client specifies.
+    """
+
     study_id: str
     time_started: datetime.datetime
     device_info: str
-    test_type: TestType
     # Optional field for potential msgs like "participant timed out" (added by frontend/client) or
     # "could not find study" (added by backend/server) or any other such.
     # (So the server - this codebase - should append to this field, not replace it.)
@@ -175,24 +175,15 @@ class Test(BaseModel):
     ] = None
 
 
-class TestIn(BaseModel):
-    """
-    The subset of fields of class Test that the user/client is allowed to specify.
-    """
+class Test(TestIn):
+    # Let DB maintain _id field; manage test_id separately.
+    # No strong reason except it slightly simplifies CSV export by removing the need to rename the field.
+    test_id: str
+    test_type: TestType
 
-    study_id: str
-    time_started: datetime.datetime
-    device_info: str
-    notes: Union[str, None] = None
-    result: Union[
-        VisualPairedAssociatesResult,
-        ChoiceReactionTimeResult,
-        DigitSymbolMatchingResult,
-        ImmediateRecallResult,
-        DelayedRecallResult,
-        SpatialMemoryResult,
-        None,
-    ] = None
+
+class ErrorMessage(BaseModel):
+    message: str
 
 
 @app.get("/")
@@ -200,7 +191,9 @@ def read_root():
     return {"Hello": "World"}
 
 
-@app.post("/studies/")
+@app.post(
+    "/studies/", response_model=list[Study], responses={400: {"model": ErrorMessage}}
+)
 def create_studies_from_list(
     participant_ids: list[str],
     response: Response,
@@ -219,7 +212,11 @@ def create_studies_from_list(
     )
 
 
-@app.post("/studies/upload-file/")
+@app.post(
+    "/studies/upload-file/",
+    response_model=list[Study],
+    responses={400: {"model": ErrorMessage}},
+)
 def create_studies_via_file_upload(
     participant_ids: Annotated[bytes, File()],
     response: Response,
@@ -254,8 +251,10 @@ def create_studies(
             # Ignore empty lines, most likely found at end of file.
             continue
         if not pid.isalnum():
-            response.status_code = status.HTTP_400_BAD_REQUEST
-            return "Non-alphanumeric participant IDs are not allowed"
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"message": "Non-alphanumeric participant IDs are not allowed"},
+            )
 
         for b in range(baselines_per_participant):
             study_id = str(ObjectId())
@@ -279,25 +278,21 @@ def create_studies(
             records_to_insert.append(new_followup_study.dict())
     try:
         ins_res = studies.insert_many(records_to_insert)
-        # insert_many adds _id to dicts; remove them.
-        # Tried filtering with FastAPI response model but no dice?
-        for i in records_to_insert:
-            i.pop("_id")
         return records_to_insert
     except Exception as e:
         raise Exception("Unable to complete study generation: ", e)
 
 
-@app.get("/studies/")
+@app.get("/studies/", response_model=list[Study])
 def get_studies_as_list():
     studies = db.get_collection("studies")
-    all_studies = studies.find({}, {"_id": 0})  # Exclude _id field
+    all_studies = studies.find({})
 
     return [s for s in all_studies]
 
 
 @app.get("/studies/download-file")
-def get_studies_as_csv_file():
+def get_studies_as_csv_file() -> FileResponse:
     studies = db.get_collection("studies")
     all_studies = studies.find({}, {"_id": 0})  # Exclude _id field
 
@@ -312,7 +307,7 @@ def get_studies_as_csv_file():
     return FileResponse("studies.csv")
 
 
-@app.post("/tests/")
+@app.post("/tests/", response_model=Test, responses={400: {"model": ErrorMessage}})
 def insert_test(test: TestIn, response: Response):
     # Starting from the TestIn fields,
     new_test_dict = test.dict()
@@ -343,8 +338,10 @@ def insert_test(test: TestIn, response: Response):
     matched_study = studies.find_one({"study_id": test.study_id})
     if not matched_study:
         # Or maybe this should be lenient and add the record anyway?
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return "Could not find study_id"
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"message": f"Could not find study with id {test.study_id}"},
+        )
 
     # All OK; give it a test_id...
     new_test_dict.update({"test_id": str(ObjectId())})
@@ -354,22 +351,21 @@ def insert_test(test: TestIn, response: Response):
         # Validate/filter against the Test model
         validated_test_dict = Test(**new_test_dict).dict()
         tests.insert_one(validated_test_dict)
-        validated_test_dict.pop("_id")  # Rm _id from returned response
         return validated_test_dict
     except Exception as e:
         raise Exception("Unable to insert test: ", e)
 
 
-@app.get("/tests/")
+@app.get("/tests/", response_model=list[Test])
 def get_tests_as_list():
     tests = db.get_collection("tests")
-    all_tests = tests.find({}, {"_id": 0})  # Exclude _id field
+    all_tests = tests.find({})
 
     return [t for t in all_tests]
 
 
 @app.get("/tests/download-file")
-def get_tests_as_csv_file():
+def get_tests_as_csv_file() -> FileResponse:
     studies = db.get_collection("studies")
     tests = db.get_collection("tests")
     all_tests = tests.find({}, {"_id": 0})  # Exclude _id field
