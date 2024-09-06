@@ -66,90 +66,117 @@ class Study(BaseModel):
 
 class VisualPairedAssociatesResult(BaseModel):
     """
-    - vpa_split_times: Time-to-answer per picture question. Should be length <=20. In... milliseconds? Will put Int for now.
-    - vpa_split_scores: Correct-or-wrong per picture question. Should be length <=20.
-    - vpa_total_score: Number correct out of 20.
+    Represents the participant's response to one question in a Visual Paired Associates test.
 
-    (The split lists will be length <20 when the participant times out before finishing all 20 questions.)
+    - vpa_rt: Time-to-answer, in milliseconds.
+    - vpa_correct: True if participant answered correctly, false otherwise.
+    - vpa_response: Participant's response (image filename).
+
+    A Test of type VISUAL_PAIRED_ASSOCIATES should have a list of VisualPairedAssociatesResults of length <=20; there are 20 questions to a test, but the participant may time out before finishing.
     """
 
-    vpa_split_times: list[int]
-    vpa_split_scores: list[bool]
-    vpa_total_score: int
+    vpa_rt: int
+    vpa_correct: bool
+    vpa_response: str
 
 
 class ChoiceReactionTimeResult(BaseModel):
     """
-    - crt_split_times: Reaction-time per question. Variable length. In... milliseconds? Will put Int for now.
-    - crt_split_scores: Correct-or-wrong per question. Variable length.
-    - crt_lefthand_correct: Number of times <left> was the correct answer and participant hit <left>.
-    - crt_lefthand_attempted: Number of times <left> was the correct answer and participant answered something.
-    - crt_righthand_correct: Number of times <right> was the correct answer and participant hit <right>.
-    - crt_righthand_attempted: Number of times <right> was the correct answer and participant answered something.
-    - crt_total_correct: Number of times participant answered correctly.
-    - crt_total_attempted: Number of times participant answered something.
+    Represents the participant's response to one question in a Choice Reaction Time test.
 
-    (The participant will time out after 90 seconds, so the "attempted" counts will vary, and the split lists will vary in length.)
+    - crt_rt: Reaction time, in milliseconds.
+    - crt_correct: True if participant answered correctly, false otherwise.
+    - crt_response: Participant's response ("right" or "left").
+    - crt_dwell: Length of time the response key was pressed/held, in milliseconds.
+
+    A Test of type CHOICE_REACTION_TIME should have a list of ChoiceReactionTimeResults, the length of which will vary according to how many questions the participant attempts in the 90 seconds allotted.
     """
 
-    crt_split_times: list[int]
-    crt_split_scores: list[bool]
-    crt_lefthand_correct: int
-    crt_lefthand_attempted: int
-    crt_righthand_correct: int
-    crt_righthand_attempted: int
-    crt_total_correct: int
-    crt_total_attempted: int
+    class RightOrLeft(enum.StrEnum):
+        RIGHT = enum.auto()
+        LEFT = enum.auto()
+
+    crt_rt: int
+    crt_correct: bool
+    crt_response: RightOrLeft
+    crt_dwell: int
 
 
 class DigitSymbolMatchingResult(BaseModel):
     """
-    - dsm_split_times: Reaction-time per question. Variable length. In... milliseconds? Will put Int for now.
-    - dsm_split_scores: Correct-or-wrong per question. Variable length.
-    - dsm_total_correct: Number of times participant answered correctly.
-    - dsm_total_attempted: Number of times participant answered something.
+    Represents the participant's response to one question in a Digit Symbol Matching test.
 
-    (The participant will time out after 90 seconds, so the "attempted" count will vary, and the split lists will vary in length.)
+    - dsm_rt: Reaction time, in milliseconds.
+    - dsm_correct: True if participant answered correctly, false otherwise.
+    - dsm_response: Participant's response (1, 2, or 3).
+
+    A Test of type DIGIT_SYMBOL_MATCHING should have a list of DigitSymbolMatchingResults, the length of which will vary according to how many questions the participant attempts in the 90 seconds allotted.
     """
 
-    dsm_split_times: list[int]
-    dsm_split_scores: list[bool]
-    dsm_total_correct: int
-    dsm_total_attempted: int
+    class OneTwoOrThree(enum.IntEnum):
+        ONE = 1
+        TWO = 2
+        THREE = 3
+
+    dsm_rt: int
+    dsm_correct: bool
+    dsm_response: OneTwoOrThree
 
 
 class ImmediateRecallResult(BaseModel):
     """
-    - ir_split_times: Time-to-answer per attempt. Variable length of 1 or 2. In... milliseconds? Will put Int for now.
-    - ir_score: 2 pts if correct on first attempt, 1 pt if on second attempt, 0 pts if failed both attempts.
+    Represents the participant's response to the sole question in an Immediate Recall test, at which they get two attempts.
+
+    - ir_rt_first: Time-to-answer for first attempt, in milliseconds.
+    - ir_rt_second: Time-to-answer for second attempt, in milliseconds.
+    - ir_score: 2 pts if correct on first attempt, 1 pt if correct on second attempt, 0 pts if failed both attempts.
+
+    A Test of type IMMEDIATE_RECALL should have one single ImmediateRecallResult.
     """
 
-    ir_split_times: list[int]
-    ir_score: int
+    class ZeroOneOrTwo(enum.IntEnum):
+        ZERO = 0
+        ONE = 1
+        TWO = 2
+
+    ir_rt_first: int
+    ir_rt_second: int
+    ir_score: ZeroOneOrTwo
 
 
 class DelayedRecallResult(BaseModel):
     """
-    - dr_time: Time-to-answer for the one attempt. In... milliseconds? Will put Int for now.
+    Represents the participant's response to the sole question in a Delayed Recall test.
+
+    - dr_rt: Time-to-answer, in milliseconds.
     - dr_score: 0-5 pts corresponding to number of animals correctly recalled.
+
+    A Test of type DELAYED_RECALL should have one single DelayedRecallResult.
     """
 
-    dr_time: int
-    dr_score: int
+    class OneToFive(enum.IntEnum):
+        ONE = 1
+        TWO = 2
+        THREE = 3
+        FOUR = 4
+        FIVE = 5
+
+    dr_rt: int
+    dr_score: OneToFive
 
 
 class SpatialMemoryResult(BaseModel):
     """
-    - sm_split_times: Time-to-answer per puzzle. Variable length <=5. In... milliseconds? Will put Int for now.
-    - sm_split_scores: Correct-or-wrong per puzzle. Variable length <=5.
-    - sm_total_correct: 0-5 pts.
+    Represents the participant's response to one question in a Spatial Memory test.
 
-    (No total-attempted field because this may be fewer than 5 if participant timed out, but never more than 5.)
+    - sm_rt: Time-to-answer, in milliseconds.
+    - sm_correct: True if participant answered correctly, false otherwise.
+
+    A Test of type SPATIAL_MEMORY should have a list of SpatialMemoryResults of length 0 to 5; there are 5 questions to a test, but the participant may time out before finishing.
     """
 
-    sm_split_times: list[int]
-    sm_split_scores: list[bool]
-    sm_total_correct: int
+    sm_rt: int
+    sm_correct: bool
 
 
 class TestIn(BaseModel):
@@ -159,23 +186,27 @@ class TestIn(BaseModel):
 
     study_id: str
     time_started: datetime.datetime
+    time_elapsed_milliseconds: int  # or timedelta, if desired...
     device_info: str
     # Optional field for potential msgs like "participant timed out" (added by frontend/client) or
     # "could not find study" (added by backend/server) or any other such.
     # (So the server - this codebase - should append to this field, not replace it.)
     notes: Union[str, None] = None
     result: Union[
-        VisualPairedAssociatesResult,
-        ChoiceReactionTimeResult,
-        DigitSymbolMatchingResult,
+        list[VisualPairedAssociatesResult],
+        list[ChoiceReactionTimeResult],
+        list[DigitSymbolMatchingResult],
         ImmediateRecallResult,
         DelayedRecallResult,
-        SpatialMemoryResult,
-        None,
-    ] = None
+        list[SpatialMemoryResult],
+    ]
 
 
 class Test(TestIn):
+    """
+    The subset of Test fields that this server provides.
+    """
+
     # Let DB maintain _id field; manage test_id separately.
     # No strong reason except it slightly simplifies CSV export by removing the need to rename the field.
     test_id: str
@@ -334,19 +365,20 @@ def insert_test(test: TestIn, response: Response):
     new_test_dict = test.dict()
 
     # infer the test_type...
-    # ("match type(test.result): case xxxResult: blah" complained of name capture. Wow!)
-    if type(test.result) is VisualPairedAssociatesResult:
-        new_test_dict.update({"test_type": TestType.VISUAL_PAIRED_ASSOCIATES})
-    elif type(test.result) is ChoiceReactionTimeResult:
-        new_test_dict.update({"test_type": TestType.CHOICE_REACTION_TIME})
-    elif type(test.result) is DigitSymbolMatchingResult:
-        new_test_dict.update({"test_type": TestType.DIGIT_SYMBOL_MATCHING})
-    elif type(test.result) is ImmediateRecallResult:
+    if isinstance(test.result, list):
+        # Unsatisfying, but pydantic already validated the list items so they are all one type
+        if isinstance(test.result[0], VisualPairedAssociatesResult):
+            new_test_dict.update({"test_type": TestType.VISUAL_PAIRED_ASSOCIATES})
+        elif isinstance(test.result[0], ChoiceReactionTimeResult):
+            new_test_dict.update({"test_type": TestType.CHOICE_REACTION_TIME})
+        elif isinstance(test.result[0], DigitSymbolMatchingResult):
+            new_test_dict.update({"test_type": TestType.DIGIT_SYMBOL_MATCHING})
+        elif isinstance(test.result[0], SpatialMemoryResult):
+            new_test_dict.update({"test_type": TestType.SPATIAL_MEMORY})
+    elif isinstance(test.result, ImmediateRecallResult):
         new_test_dict.update({"test_type": TestType.IMMEDIATE_RECALL})
-    elif type(test.result) is DelayedRecallResult:
+    elif isinstance(test.result, DelayedRecallResult):
         new_test_dict.update({"test_type": TestType.DELAYED_RECALL})
-    elif type(test.result) is SpatialMemoryResult:
-        new_test_dict.update({"test_type": TestType.SPATIAL_MEMORY})
     else:
         # should not get here
         raise Exception(
@@ -392,7 +424,6 @@ def get_tests_as_csv_file() -> FileResponse:
     all_tests = tests.find({}, {"_id": 0})  # Exclude _id field
 
     with open("tests.csv", "w", newline="") as csvfile:
-
         # Get the fieldnames, but throw out the "result" and "study_id" fields.
         # (The study_id field will get added back in below, along with all the other study fields.)
         fields = Test.model_fields
@@ -411,15 +442,24 @@ def get_tests_as_csv_file() -> FileResponse:
         fieldnames ^= Study.model_fields.keys()
 
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
         writer.writeheader()
+
         for test in all_tests:
             test_result = test.pop("result")
-            test.update(test_result)
-            study_id = test.pop("study_id")
-            study = studies.find_one({"study_id": study_id})
-            study.pop("_id")
-            test.update(study)
-            writer.writerow(test)
+            if isinstance(test_result, list):
+                for question in test_result:
+                    test.update(question)
+                    study_id = test.pop("study_id")
+                    study = studies.find_one({"study_id": study_id})
+                    study.pop("_id")
+                    test.update(study)
+                    writer.writerow(test)
+            else:
+                test.update(test_result)
+                study_id = test.pop("study_id")
+                study = studies.find_one({"study_id": study_id})
+                study.pop("_id")
+                test.update(study)
+                writer.writerow(test)
 
     return FileResponse("tests.csv")
