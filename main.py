@@ -217,6 +217,25 @@ class ErrorMessage(BaseModel):
     message: str
 
 
+test_type_to_result_type = {
+    TestType.IMMEDIATE_RECALL: ImmediateRecallResult,
+    TestType.DELAYED_RECALL: DelayedRecallResult,
+    TestType.CHOICE_REACTION_TIME: ChoiceReactionTimeResult,
+    TestType.VISUAL_PAIRED_ASSOCIATES: VisualPairedAssociatesResult,
+    TestType.DIGIT_SYMBOL_MATCHING: DigitSymbolMatchingResult,
+    TestType.SPATIAL_MEMORY: SpatialMemoryResult,
+}
+
+result_type_to_test_type = {
+    ImmediateRecallResult: TestType.IMMEDIATE_RECALL,
+    DelayedRecallResult: TestType.DELAYED_RECALL,
+    ChoiceReactionTimeResult: TestType.CHOICE_REACTION_TIME,
+    VisualPairedAssociatesResult: TestType.VISUAL_PAIRED_ASSOCIATES,
+    DigitSymbolMatchingResult: TestType.DIGIT_SYMBOL_MATCHING,
+    SpatialMemoryResult: TestType.SPATIAL_MEMORY,
+}
+
+
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
@@ -366,24 +385,11 @@ def insert_test(test: TestIn, response: Response):
 
     # infer the test_type...
     if isinstance(test.result, list):
-        # Unsatisfying, but pydantic already validated the list items so they are all one type
-        if isinstance(test.result[0], VisualPairedAssociatesResult):
-            new_test_dict.update({"test_type": TestType.VISUAL_PAIRED_ASSOCIATES})
-        elif isinstance(test.result[0], ChoiceReactionTimeResult):
-            new_test_dict.update({"test_type": TestType.CHOICE_REACTION_TIME})
-        elif isinstance(test.result[0], DigitSymbolMatchingResult):
-            new_test_dict.update({"test_type": TestType.DIGIT_SYMBOL_MATCHING})
-        elif isinstance(test.result[0], SpatialMemoryResult):
-            new_test_dict.update({"test_type": TestType.SPATIAL_MEMORY})
-    elif isinstance(test.result, ImmediateRecallResult):
-        new_test_dict.update({"test_type": TestType.IMMEDIATE_RECALL})
-    elif isinstance(test.result, DelayedRecallResult):
-        new_test_dict.update({"test_type": TestType.DELAYED_RECALL})
-    else:
-        # should not get here
-        raise Exception(
-            "Could not infer test type; should have been caught by type validation"
+        new_test_dict.update(
+            {"test_type": result_type_to_test_type[type(test.result[0])]}
         )
+    else:
+        new_test_dict.update({"test_type": result_type_to_test_type[type(test.result)]})
 
     # check that the study_id corresponds to an existing study...
     # (note: does _not_ check for an existing submitted test result of this type for this study)
@@ -426,7 +432,7 @@ def get_tests_as_csv_file() -> FileResponse:
     with open("tests.csv", "w", newline="") as csvfile:
         # Get the fieldnames, but throw out the "result" and "study_id" fields.
         # (The study_id field will get added back in below, along with all the other study fields.)
-        fields = Test.model_fields
+        fields = Test.model_fields.copy()
         fields.pop("result")
         fields.pop("study_id")
         fieldnames = fields.keys()
@@ -445,20 +451,67 @@ def get_tests_as_csv_file() -> FileResponse:
         writer.writeheader()
 
         for test in all_tests:
+            study_id = test.pop("study_id")
+            study = studies.find_one({"study_id": study_id})
+            study.pop("_id")
+
             test_result = test.pop("result")
+
             if isinstance(test_result, list):
                 for question in test_result:
                     test.update(question)
-                    study_id = test.pop("study_id")
-                    study = studies.find_one({"study_id": study_id})
-                    study.pop("_id")
                     test.update(study)
                     writer.writerow(test)
             else:
                 test.update(test_result)
-                study_id = test.pop("study_id")
-                study = studies.find_one({"study_id": study_id})
-                study.pop("_id")
+                test.update(study)
+                writer.writerow(test)
+
+    return FileResponse("tests.csv")
+
+
+@app.get("/tests/single-test-type/download-file")
+def get_single_test_type_as_csv_file(
+    test_type: TestType,
+    participant_id: str = None,
+) -> FileResponse:
+    studies = db.get_collection("studies")
+    tests = db.get_collection("tests")
+    all_tests = tests.find({"test_type": test_type}, {"_id": 0})  # Exclude _id field
+
+    with open("tests.csv", "w", newline="") as csvfile:
+        # Get the fieldnames, but throw out the "result" and "study_id" fields.
+        # (The study_id field will get added back in below, along with all the other study fields.)
+        fields = Test.model_fields.copy()
+        fields.pop("result")
+        fields.pop("study_id")
+        fieldnames = fields.keys()
+
+        # Add the result (sub)fields for the requested test type into the fieldnames.
+        fieldnames ^= test_type_to_result_type[test_type].model_fields.keys()
+
+        # Also normalize the study fields into the fieldnames.
+        fieldnames ^= Study.model_fields.keys()
+
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for test in all_tests:
+            study_id = test.pop("study_id")
+            study = studies.find_one({"study_id": study_id})
+            if participant_id and study["participant_id"] != participant_id:
+                continue
+            study.pop("_id")
+
+            test_result = test.pop("result")
+
+            if isinstance(test_result, list):
+                for question in test_result:
+                    test.update(question)
+                    test.update(study)
+                    writer.writerow(test)
+            else:
+                test.update(test_result)
                 test.update(study)
                 writer.writerow(test)
 
