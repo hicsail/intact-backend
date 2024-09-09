@@ -4,6 +4,7 @@ import enum
 from bson.objectid import ObjectId
 from contextlib import asynccontextmanager
 from typing import Annotated, Union
+from zipfile import ZipFile
 
 from fastapi import FastAPI, File, Response, status
 from fastapi.responses import FileResponse, JSONResponse
@@ -423,51 +424,69 @@ def get_tests_as_list():
     return [t for t in all_tests]
 
 
-@app.get("/tests/download-file")
-def get_tests_as_csv_file() -> FileResponse:
+def write_single_test_type_to_csv_file(
+    csvfile,
+    test_type: TestType,
+    participant_id: str = None,
+):
     studies = db.get_collection("studies")
     tests = db.get_collection("tests")
-    all_tests = tests.find({}, {"_id": 0})  # Exclude _id field
+    all_tests = tests.find({"test_type": test_type}, {"_id": 0})  # Exclude _id field
 
-    with open("tests.csv", "w", newline="") as csvfile:
-        # Get the fieldnames, but throw out the "result" and "study_id" fields.
-        # (The study_id field will get added back in below, along with all the other study fields.)
-        fields = Test.model_fields.copy()
-        fields.pop("result")
-        fields.pop("study_id")
-        fieldnames = fields.keys()
-        # Instead, normalize the result fields into the fieldnames.
-        # (This is why, in the xyzResults class fields, all the field names are prefixed.)
-        fieldnames ^= VisualPairedAssociatesResult.model_fields.keys()
-        fieldnames ^= ChoiceReactionTimeResult.model_fields.keys()
-        fieldnames ^= DigitSymbolMatchingResult.model_fields.keys()
-        fieldnames ^= ImmediateRecallResult.model_fields.keys()
-        fieldnames ^= DelayedRecallResult.model_fields.keys()
-        fieldnames ^= SpatialMemoryResult.model_fields.keys()
-        # Also normalize the study fields into the fieldnames.
-        fieldnames ^= Study.model_fields.keys()
+    # Get the fieldnames, but throw out the "result" and "study_id" fields.
+    # (The study_id field will get added back in below, along with all the other study fields.)
+    fields = Test.model_fields.copy()
+    fields.pop("result")
+    fields.pop("study_id")
+    fieldnames = fields.keys()
 
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
+    # Add the result (sub)fields for the requested test type into the fieldnames.
+    fieldnames ^= test_type_to_result_type[test_type].model_fields.keys()
 
-        for test in all_tests:
-            study_id = test.pop("study_id")
-            study = studies.find_one({"study_id": study_id})
-            study.pop("_id")
+    # Also normalize the study fields into the fieldnames.
+    fieldnames ^= Study.model_fields.keys()
 
-            test_result = test.pop("result")
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
 
-            if isinstance(test_result, list):
-                for question in test_result:
-                    test.update(question)
-                    test.update(study)
-                    writer.writerow(test)
-            else:
-                test.update(test_result)
+    for test in all_tests:
+        study_id = test.pop("study_id")
+        study = studies.find_one({"study_id": study_id})
+        if participant_id and study["participant_id"] != participant_id:
+            continue
+        study.pop("_id")
+
+        test_result = test.pop("result")
+
+        if isinstance(test_result, list):
+            for question in test_result:
+                test.update(question)
                 test.update(study)
                 writer.writerow(test)
+        else:
+            test.update(test_result)
+            test.update(study)
+            writer.writerow(test)
 
-    return FileResponse("tests.csv")
+
+@app.get("/tests/zip-archive/download-file")
+def get_tests_as_csv_zip_archive(participant_id: str = None) -> FileResponse:
+    """
+    Download results data on all test types, one CSV file per test type, combined into a ZIP archive.
+
+    If `participant_id` is given, restrict the results to those concerning that `participant_id`.
+
+    If no tests are found for a particular test_type or participant_id, an empty CSV file is generated, containing just the header (field names).
+    """
+
+    with ZipFile("all-tests.zip", "w") as zipfile:
+        for test_type in TestType:
+            csv_filename = test_type.value + ".csv"
+            with open(csv_filename, "w", newline="") as csvfile:
+                write_single_test_type_to_csv_file(csvfile, test_type, participant_id)
+            zipfile.write(csv_filename)
+
+    return FileResponse("all-tests.zip")
 
 
 @app.get("/tests/single-test-type/download-file")
@@ -475,44 +494,15 @@ def get_single_test_type_as_csv_file(
     test_type: TestType,
     participant_id: str = None,
 ) -> FileResponse:
-    studies = db.get_collection("studies")
-    tests = db.get_collection("tests")
-    all_tests = tests.find({"test_type": test_type}, {"_id": 0})  # Exclude _id field
+    """
+    Download results data on one test type, returned in a CSV file.
 
-    with open("tests.csv", "w", newline="") as csvfile:
-        # Get the fieldnames, but throw out the "result" and "study_id" fields.
-        # (The study_id field will get added back in below, along with all the other study fields.)
-        fields = Test.model_fields.copy()
-        fields.pop("result")
-        fields.pop("study_id")
-        fieldnames = fields.keys()
+    If `participant_id` is given, restrict the results to those concerning that `participant_id`.
 
-        # Add the result (sub)fields for the requested test type into the fieldnames.
-        fieldnames ^= test_type_to_result_type[test_type].model_fields.keys()
+    If no tests are found for a particular test_type or participant_id, an empty CSV file is generated, containing just the header (field names).
+    """
 
-        # Also normalize the study fields into the fieldnames.
-        fieldnames ^= Study.model_fields.keys()
+    with open("test.csv", "w", newline="") as csvfile:
+        write_single_test_type_to_csv_file(csvfile, test_type, participant_id)
 
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-
-        for test in all_tests:
-            study_id = test.pop("study_id")
-            study = studies.find_one({"study_id": study_id})
-            if participant_id and study["participant_id"] != participant_id:
-                continue
-            study.pop("_id")
-
-            test_result = test.pop("result")
-
-            if isinstance(test_result, list):
-                for question in test_result:
-                    test.update(question)
-                    test.update(study)
-                    writer.writerow(test)
-            else:
-                test.update(test_result)
-                test.update(study)
-                writer.writerow(test)
-
-    return FileResponse("tests.csv")
+    return FileResponse("test.csv")
