@@ -128,7 +128,7 @@ class ImmediateRecallResult(BaseModel):
     Represents the participant's response to the sole question in an Immediate Recall test, at which they get two attempts.
 
     - ir_rt_first: Time-to-answer for first attempt, in milliseconds.
-    - ir_rt_second: Time-to-answer for second attempt, in milliseconds.
+    - ir_rt_second: Time-to-answer for second attempt, in milliseconds. Optional (use only when second attempt was made).
     - ir_score: 2 pts if correct on first attempt, 1 pt if correct on second attempt, 0 pts if failed both attempts.
 
     A Test of type IMMEDIATE_RECALL should have one single ImmediateRecallResult.
@@ -140,7 +140,7 @@ class ImmediateRecallResult(BaseModel):
         TWO = 2
 
     ir_rt_first: int
-    ir_rt_second: int
+    ir_rt_second: Union[int, None] = None
     ir_score: ZeroOneOrTwo
 
 
