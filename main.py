@@ -1,13 +1,15 @@
+import asyncio
 import csv
 import datetime
 import enum
+import functools
 from bson.objectid import ObjectId
 from contextlib import asynccontextmanager
 from typing import Annotated, Union
 from zipfile import ZipFile
 
-from fastapi import FastAPI, File, Response, status
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, File, Form, Response, status, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pymongo import MongoClient
@@ -17,6 +19,8 @@ class Settings(BaseSettings):
     hostname: str = "localhost"
     db_connection_str: str = "mongodb://localhost:27017/"
     db_name: str = "intact"
+
+    admin_password: str = "password"
 
     # In development, read settings from .env.
     # In production, just set environment variables.
@@ -40,6 +44,31 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+# Note on authentication and authorization:
+# For authorization for the admin-facing endpoints (everything except POST /tests/),
+# use a 'password' field in the body of a POST request.
+# For authentication for the front-end client (POST /tests/),
+# the study_id is sufficient.
+
+
+def check_admin_password(path_op):
+    @functools.wraps(path_op)
+    async def wrapper(**kwargs):
+        if kwargs["password"] != settings.admin_password:
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"message": "Wrong admin password"},
+            )
+        else:
+            rv = path_op(**kwargs)
+            if asyncio.iscoroutine(rv):
+                return await rv
+            else:
+                return rv
+
+    return wrapper
 
 
 class StudyType(enum.StrEnum):
@@ -239,50 +268,73 @@ result_type_to_test_type = {
 
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return "This is the INTACT backend. Please visit /docs if you are a developer or /admin if you are a researcher."
 
 
 @app.post(
-    "/studies/", response_model=list[Study], responses={400: {"model": ErrorMessage}}
+    "/studies/",
+    response_model=list[Study],
+    responses={400: {"model": ErrorMessage}, 401: {"model": ErrorMessage}},
 )
+@check_admin_password
 def create_studies_from_list(
-    participant_ids: list[str],
+    password: Annotated[str, Form()],
+    participant_ids: Annotated[str, Form()],
     response: Response,
-    baselines_per_participant: int = 1,
-    followups_per_participant: int = 1,
+    baselines_per_participant: Annotated[int, Form()] = 1,
+    followups_per_participant: Annotated[int, Form()] = 1,
 ):
     """
-    Given a list of alphanumeric participant IDs, generate and return a list of studies with corresponding URLs.
+    Given a newline-separated list of alphanumeric participant IDs, generate and return a list of studies with corresponding URLs.
     If baselines_per_participant or followups_per_participant is specified (default 1),
     generate that many baseline or followup studies per participant.
 
     NB: If this is called more than once, it will generate additional studies (it is not idempotent).
     """
+    try:
+        # rows = [s.strip() for s in participant_ids.split(",")] # if people like comma-separated better
+        rows = [s.strip() for s in participant_ids.splitlines()]
+    except:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "Could not parse participant_id list; make sure it contains only a newline-separated list of alphanumeric participant IDs."
+            },
+        )
     return create_studies(
-        participant_ids, response, baselines_per_participant, followups_per_participant
+        rows, response, baselines_per_participant, followups_per_participant
     )
 
 
 @app.post(
     "/studies/upload-file/",
     response_model=list[Study],
-    responses={400: {"model": ErrorMessage}},
+    responses={400: {"model": ErrorMessage}, 401: {"model": ErrorMessage}},
 )
-def create_studies_via_file_upload(
-    participant_ids: Annotated[bytes, File()],
+@check_admin_password
+async def create_studies_via_file_upload(
+    password: Annotated[str, Form()],
+    participant_ids_file: Annotated[UploadFile, File()],
     response: Response,
-    baselines_per_participant: int = 1,
-    followups_per_participant: int = 1,
+    baselines_per_participant: Annotated[int, Form()] = 1,
+    followups_per_participant: Annotated[int, Form()] = 1,
 ):
     """
     Like create_studies, but participant IDs are given via file upload.
     The uploaded file should contain only a newline-separated list of alphanumeric participant IDs.
     Blank lines will be ignored.
     """
-    # Developer note: This uses the File class and not the UploadFile class; it stores the whole file in memory.
-    # This works well for small files. If files get too big, switch to UploadFile.
+    try:
+        participant_ids = await participant_ids_file.read()
+        rows = [s.strip() for s in str(participant_ids, encoding="utf-8").splitlines()]
+    except:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "Could not read file; make sure it is a .txt or .csv file and contains only a newline-separated list of alphanumeric participant IDs."
+            },
+        )
 
-    rows = str(participant_ids, encoding="utf-8").splitlines()
     return create_studies(
         rows, response, baselines_per_participant, followups_per_participant
     )
@@ -355,16 +407,11 @@ def create_studies(
         raise Exception("Unable to complete study generation: ", e)
 
 
-@app.get("/studies/", response_model=list[Study])
-def get_studies_as_list():
-    studies = db.get_collection("studies")
-    all_studies = studies.find({})
-
-    return [s for s in all_studies]
-
-
-@app.get("/studies/download-file")
-def get_studies_as_csv_file() -> FileResponse:
+@app.post("/studies/download-file", responses={401: {"model": ErrorMessage}})
+@check_admin_password
+def get_studies_as_csv_file(
+    password: Annotated[str, Form()],
+) -> FileResponse:
     studies = db.get_collection("studies")
     all_studies = studies.find({}, {"_id": 0})  # Exclude _id field
 
@@ -416,14 +463,6 @@ def insert_test(test: TestIn, response: Response):
         raise Exception("Unable to insert test: ", e)
 
 
-@app.get("/tests/", response_model=list[Test])
-def get_tests_as_list():
-    tests = db.get_collection("tests")
-    all_tests = tests.find({})
-
-    return [t for t in all_tests]
-
-
 def write_single_test_type_to_csv_file(
     csvfile,
     test_type: TestType,
@@ -469,8 +508,11 @@ def write_single_test_type_to_csv_file(
             writer.writerow(test)
 
 
-@app.get("/tests/zip-archive/download-file")
-def get_tests_as_csv_zip_archive(participant_id: str = None) -> FileResponse:
+@app.post("/tests/zip-archive/download-file", responses={401: {"model": ErrorMessage}})
+@check_admin_password
+def get_tests_as_csv_zip_archive(
+    password: Annotated[str, Form()], participant_id: Annotated[str, Form()] = None
+) -> FileResponse:
     """
     Download results data on all test types, one CSV file per test type, combined into a ZIP archive.
 
@@ -489,10 +531,14 @@ def get_tests_as_csv_zip_archive(participant_id: str = None) -> FileResponse:
     return FileResponse("all-tests.zip")
 
 
-@app.get("/tests/single-test-type/download-file")
+@app.post(
+    "/tests/single-test-type/download-file", responses={401: {"model": ErrorMessage}}
+)
+@check_admin_password
 def get_single_test_type_as_csv_file(
-    test_type: TestType,
-    participant_id: str = None,
+    password: Annotated[str, Form()],
+    test_type: Annotated[TestType, Form()],
+    participant_id: Annotated[str, Form()] = None,
 ) -> FileResponse:
     """
     Download results data on one test type, returned in a CSV file.
@@ -506,3 +552,10 @@ def get_single_test_type_as_csv_file(
         write_single_test_type_to_csv_file(csvfile, test_type, participant_id)
 
     return FileResponse("test.csv")
+
+
+@app.get("/admin/", response_class=HTMLResponse)
+def admin_form():
+    return """
+    <!-- HTML here -->
+    """
