@@ -17,6 +17,7 @@ python-multipart = "^0.0.9"
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"
 python-dotenv = "^1.0.1"
+ipdb = "^0.13.13"
 
 [build-system]
 requires = ["poetry-core"]
