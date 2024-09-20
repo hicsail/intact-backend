@@ -3,12 +3,13 @@ import csv
 import datetime
 import enum
 import functools
+import os
 from bson.objectid import ObjectId
 from contextlib import asynccontextmanager
 from typing import Annotated, Union
 from zipfile import ZipFile
 
-from fastapi import FastAPI, File, Form, Response, status, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Response, status, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -44,6 +45,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+def clean_up_files():
+    """
+    Delete all .csv and .zip files. Called as BackgroundTask after path operations
+    which generate files to return to the user.
+
+    This function assumes that the server never generates .csv or .zip files that it
+    wants to keep; if this changes, rewrite this function.
+    """
+    for f in os.listdir():
+        if f.endswith((".csv", ".zip")):
+            os.remove(f)
 
 
 # Note on authentication and authorization:
@@ -410,6 +424,7 @@ def create_studies(
 @app.post("/studies/download-file", responses={401: {"model": ErrorMessage}})
 @check_admin_password
 def get_studies_as_csv_file(
+    background_tasks: BackgroundTasks,
     password: Annotated[str, Form()],
 ) -> FileResponse:
     studies = db.get_collection("studies")
@@ -422,6 +437,7 @@ def get_studies_as_csv_file(
         writer.writeheader()
         for s in all_studies:
             writer.writerow(s)
+    background_tasks.add_task(clean_up_files)
 
     return FileResponse("studies.csv")
 
@@ -511,7 +527,9 @@ def write_single_test_type_to_csv_file(
 @app.post("/tests/zip-archive/download-file", responses={401: {"model": ErrorMessage}})
 @check_admin_password
 def get_tests_as_csv_zip_archive(
-    password: Annotated[str, Form()], participant_id: Annotated[str, Form()] = None
+    background_tasks: BackgroundTasks,
+    password: Annotated[str, Form()],
+    participant_id: Annotated[str, Form()] = None,
 ) -> FileResponse:
     """
     Download results data on all test types, one CSV file per test type, combined into a ZIP archive.
@@ -527,6 +545,7 @@ def get_tests_as_csv_zip_archive(
             with open(csv_filename, "w", newline="") as csvfile:
                 write_single_test_type_to_csv_file(csvfile, test_type, participant_id)
             zipfile.write(csv_filename)
+    background_tasks.add_task(clean_up_files)
 
     return FileResponse("all-tests.zip")
 
@@ -536,6 +555,7 @@ def get_tests_as_csv_zip_archive(
 )
 @check_admin_password
 def get_single_test_type_as_csv_file(
+    background_tasks: BackgroundTasks,
     password: Annotated[str, Form()],
     test_type: Annotated[TestType, Form()],
     participant_id: Annotated[str, Form()] = None,
@@ -550,6 +570,7 @@ def get_single_test_type_as_csv_file(
 
     with open("test.csv", "w", newline="") as csvfile:
         write_single_test_type_to_csv_file(csvfile, test_type, participant_id)
+    background_tasks.add_task(clean_up_files)
 
     return FileResponse("test.csv")
 
