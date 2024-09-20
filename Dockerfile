@@ -20,7 +20,8 @@ COPY --from=requirements-stage /tmp/requirements.txt /code/requirements.txt
 
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
-# no /app folder, just a main.py
+# no /app folder, just a main.py and adminpage.html
 COPY ./main.py /code/main.py
+COPY ./adminpage.html /code/adminpage.html
 
 CMD ["fastapi", "run", "main.py", "--port", "80"]
