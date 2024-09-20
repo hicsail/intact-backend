@@ -10,7 +10,7 @@ This is the backend server for INTACT. It uses FastAPI and MongoDB.
 
 (or equivalent)
 
-Copy `.env.example` to `.env` and edit the `DB_CONNECTION_STR` and `DB_NAME` to connect to your preferred local/Dockerized Mongo DB. The `HOSTNAME` will determine the hostname in the study URLs given to participants, so should point to the front-end.
+Copy `.env.example` to `.env` and edit the `DB_CONNECTION_STR` and `DB_NAME` to connect to your preferred local/Dockerized Mongo DB. The `HOSTNAME` will determine the hostname in the study URLs given to participants, so should point to the front-end. `ADMIN_PASSWORD` is the password that researchers will use to interact with the backend (it is not e.g. a database admin password).
 
 Recommended: Set up your IDE or a pre-commit hook to Blacken files automatically.
 Otherwise, remember to Blacken everything manually before committing.

@@ -1,26 +1,23 @@
 version: '3.1'
 
-# TODO: I am test-deploying in a great hurry; obviously will sort out the environment etc.
-# To run a compose stack locally, just build the intact-backend image from the Dockerfile.
-
 services:
 
   intact-backend:
-    # TODO
-    # image: intact-backend
     image: hicsail/intact-backend:main
     ports:
-      - "8000:80"
+      - "1333:80"
     environment:
-      # TODO
-      HOSTNAME: "intact-frontend.sail.codes"
-      DB_NAME: "intact"
-      DB_CONNECTION_STR: "mongodb://root:example@mongo:27017/"
+      HOSTNAME: ${HOSTNAME}
+      DB_NAME: ${DB_NAME}
+      DB_CONNECTION_STR: ${DB_CONNECTION_STR}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
 
   mongo:
-    image: mongo
+    image: mongo:8
     restart: always
-    environment:
-      # TODO
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - intact-backend-mongo-data-staging:/data/db
+
+volumes:
+  intact-backend-mongo-data-staging:
+    external: true
