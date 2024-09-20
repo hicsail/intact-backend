@@ -1,0 +1,307 @@
+<html>
+  <head>
+    <title>INTACT Admin Interface</title>
+    <style>
+      body {
+        text-align: center;
+        background: #b7c0b4;
+      }
+
+      form {
+        display: inline-block;
+      }
+
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      form li + li {
+        /* List items but not the first one */
+        margin-top: 1em;
+      }
+
+      label {
+        display: inline-block;
+        min-width: 90px;
+        text-align: right;
+        color: #083d77;
+        font-weight: bold;
+      }
+
+      p {
+        /* Approximates optimal line length for text */
+        max-width: 75em;
+      }
+
+      input,
+      textarea {
+        font: 1em sans-serif;
+        width: 300px;
+        box-sizing: border-box;
+        border: 1px solid #083d77;
+      }
+
+      input:focus,
+      textarea:focus {
+        border-color: #000;
+      }
+
+      textarea {
+        vertical-align: top;
+        height: 5em;
+      }
+
+      .block-button {
+        padding: 0.5em;
+      }
+
+      .or-div {
+        display: grid;
+        grid-template-columns: 8fr 1fr 8fr;
+        gap: 10px;
+        margin: 2em;
+      }
+
+      .or-text {
+        font-size: large;
+      }
+
+      .topicbox {
+        padding: 1em 4em;
+        border: 1px solid #083d77;
+        border-radius: 1em;
+        margin: 1em auto;
+        width: 75%;
+        background: #ebebd3;
+      }
+
+      #header-spacer {
+        height: 3em;
+      }
+
+      #participant_ids_file {
+        /* No border for file inputs */
+        border: none;
+      }
+
+      #get-test-data-ordiv-left,
+      #get-test-data-ordiv-right {
+        /* these particular divs look awkward w default alignment
+	   because very little content in each */
+        align-content: end;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="header-spacer"></div>
+    <h1>INTACT Admin Interface</h1>
+
+    <form method="post">
+      <div>
+        <label for="password"
+          >Admin Password (required for all operations):
+        </label>
+        <input type="password" name="password" id="password" required />
+      </div>
+
+      <div class="topicbox">
+        <h2>1. Add new studies</h2>
+        <p>
+          The first step is to generate studies for each participant. Each study
+          is linked to a participant and can be a baseline or a follow-up study.
+          So, for example, if you would like each participant to be assigned 1
+          baseline and 2 follow-up studies, enter 1 and 2 below.
+        </p>
+        <ul>
+          <li>
+            <label for="baselines_per_participant"
+              >Baseline studies per participant (optional, default 1):
+            </label>
+            <input
+              type="number"
+              name="baselines_per_participant"
+              id="baselines_per_participant"
+            />
+          </li>
+          <li>
+            <label for="followups_per_participant"
+              >Follow-up studies per participant (optional, default 1):
+            </label>
+            <input
+              type="number"
+              name="followups_per_participant"
+              id="followups_per_participant"
+            />
+          </li>
+        </ul>
+        <p>
+          Next, provide the list of participant_ids for which to generate
+          studies. Continuing the example where you have set 1 baseline and 2
+          follow-up studies per participant, if you provide here 2
+          participant_ids "abc12" and "xyz34", you will generate 6 study_ids in
+          total.
+        </p>
+        <p>
+          You can either enter the participant_ids in the text box (on the
+          left), or upload a file (on the right). The text box or uploaded file
+          should contain only a <strong>newline-separated</strong> list of
+          <strong>alphanumeric</strong> participant IDs. Blank lines and
+          whitespace will be ignored.
+        </p>
+
+        <div class="or-div">
+          <div>
+            <ul>
+              <li>
+                <label for="participant_ids">Participant ID list: </label>
+              </li>
+              <li>
+                <textarea
+                  name="participant_ids"
+                  id="participant_ids"
+                ></textarea>
+              </li>
+              <li>
+                <input
+                  class="block-button"
+                  type="submit"
+                  formaction="/studies/"
+                  value="Generate studies from text list"
+                />
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p class="or-text">OR</p>
+          </div>
+          <div>
+            <ul>
+              <li>
+                <label for="participant_ids_file"
+                  >Participant ID file (.txt or .csv):
+                </label>
+              </li>
+              <li>
+                <input
+                  type="file"
+                  name="participant_ids_file"
+                  id="participant_ids_file"
+                  accept=".txt,.csv"
+                />
+              </li>
+              <li>
+                <input
+                  class="block-button"
+                  type="submit"
+                  formaction="/studies/upload-file"
+                  formenctype="multipart/form-data"
+                  value="Generate studies from file"
+                />
+              </li>
+            </ul>
+          </div>
+        </div>
+        <p>
+          After you submit, you will see a JSON response listing the studies you
+          just created. Navigate back to this page for the next steps. If you
+          later find you need to add more participants, or if a participant had
+          a technical problem and you would like to generate a new study for
+          them, you can (for example) set "baselines per participant" to 1 and
+          "followups per participant" to 0, and enter just one participant_id
+          "abc12". This would generate just one new baseline study associated
+          with participant "abc12".
+        </p>
+      </div>
+      <div class="topicbox">
+        <h2>2. Get all studies</h2>
+        <p>
+          Once you have generated your studies, use this section to retrieve a
+          CSV file containing all studies and their associated study types
+          (baseline/follow-up), participant_ids, and URLs. The study URLs can
+          then be shared with the corresponding participants.
+        </p>
+        <input
+          class="block-button"
+          type="submit"
+          formaction="/studies/download-file"
+          value="Get studies as CSV"
+        />
+      </div>
+      <div class="topicbox">
+        <h2>3. Get test data</h2>
+        <p>
+          As the participants complete their studies, you will be able to query
+          the test data here. (You do not need to wait until everyone has
+          finished before you can query the data. If there is no data yet for
+          the given parameters, however, you will get an empty CSV file.)
+        </p>
+        <p>
+          You can choose to download a ZIP archive of data from all the test
+          types; the data from each test will be contained in a separate CSV
+          file in the archive. Alternatively, you can query test data for a
+          single test type; in this case, the data will be returned in a single
+          CSV.
+        </p>
+        <p>
+          If you input a participant_id of interest, the results (in both the
+          combined ZIP and single CSV formats) will be restricted to data from
+          studies (both baseline and follow-up) associated with that
+          participant. If no participant_id is entered, data from all
+          participants will be returned.
+        </p>
+        <div>
+          <label for="participant_id"
+            >Participant ID of interest (optional):
+          </label>
+          <input type="text" name="participant_id" id="participant_id" />
+        </div>
+
+        <div class="or-div">
+          <div id="get-test-data-ordiv-left">
+            <input
+              class="block-button"
+              type="submit"
+              formaction="/tests/zip-archive/download-file"
+              value="Get combined test data as ZIP"
+            />
+          </div>
+          <div>
+            <p class="or-text">OR</p>
+          </div>
+          <div id="get-test-data-ordiv-right">
+            <ul>
+              <li>
+                <label for="test_type-select">Test type:</label>
+                <select name="test_type" id="test_type-select">
+                  <option value="immediate_recall">Immediate Recall</option>
+                  <option value="delayed_recall">Delayed Recall</option>
+                  <option value="choice_reaction_time">
+                    Choice Reaction Time
+                  </option>
+                  <option value="visual_paired_associates">
+                    Visual Pairerd Associates
+                  </option>
+                  <option value="digit_symbol_matching">
+                    Digit Symbol Matching
+                  </option>
+                  <option value="spatial_memory">Spatial Memory</option>
+                </select>
+              </li>
+              <li>
+                <input
+                  class="block-button"
+                  type="submit"
+                  formaction="/tests/single-test-type/download-file"
+                  value="Get single test data as CSV"
+                />
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </form>
+  </body>
+</html>

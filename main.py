@@ -556,6 +556,6 @@ def get_single_test_type_as_csv_file(
 
 @app.get("/admin/", response_class=HTMLResponse)
 def admin_form():
-    return """
-    <!-- HTML here -->
-    """
+    with open("adminpage.html", "r") as f:
+        data = f.read()
+        return data
