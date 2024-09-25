@@ -5,7 +5,9 @@ This is the backend server for INTACT. It uses FastAPI and MongoDB.
 ## Set up for local dev
 
 `pyenv virtualenv 3.12.4 intact-backend`
+
 `pyenv activate intact-backend`
+
 `poetry install`
 
 (or equivalent)
@@ -23,16 +25,24 @@ Run in production mode:
 
 View OpenAPI/Swagger docs: go to http://localhost:8000/docs
 
+View admin page: go to http://localhost:8000/admin
+
 ## Or run a local compose stack
 
-`docker compose up` and go to http://localhost:8000/docs
+`docker compose up` and go to http://localhost:1333/docs (OpenAPI) or http://localhost:1333/admin (admin page)
 
 
 # Workflow
 
-### 1. Generate a list of participant IDs (not using the server)
+The INTACT backend interacts with two entities: (1) researchers/administrators who are running the study, and (2) study participants. Admins interact with the backend through the admin page `/admin`; study participants interact with the *front*-end, and the front-end interacts with a single endpoint, POST /tests/.
 
-The participant IDs must be alphanumeric. You can list them in a .txt or .csv file as a newline-separated list.
+Neither admins nor study participants authenticate to the server. Admins submit an admin password (see/configure `ADMIN_PASSWORD` above) via HTML form/POST request; study participants pass a `study_id` (*not* a `participant_id` - each `participant_id` is linked to one or more *baseline* or *follow-up* studies) via URL.
+
+Admin-facing instructions can be found by loading `/admin`. The following is an outline of the expected general sequence of events.
+
+### 1. Admin generates a list of participant IDs (not using the server)
+
+The participant IDs must be alphanumeric. They can be listed in a .txt or .csv file as a newline-separated list.
 Here is an example of a possible participant ID list.
 
 ```
@@ -43,20 +53,22 @@ abcdef1234
 banana
 ```
 
-### 2. Generate studies and distribute URLs to participants
+### 2. Admin generates studies and distributes URLs to participants
 
-Use POST /studies/ if you want to pass in a JSON list of participant IDs; use POST /studies/upload-file/ if you want to pass in a file like the example above.
+The admin form presents the option of submitting the participant ID list directly as plaintext (this will submit to POST /studies/), or as a .txt or .csv file (this will submit to POST /studies/upload-file).
 
-The default query parameters will generate one baseline and one followup study per participant. Adjust as desired.
+The default query parameters will generate one baseline and one follow-up study per participant. Adjust as desired.
 
-The POST /studies/ and POST /studies/upload-file/ endpoints  will return the newly generated studies as a JSON list. To retrieve _all_ studies (that is, including any previously generated), use GET /studies/ for a JSON list, or use GET /studies/download-file for a CSV.
+The POST /studies/ and POST /studies/upload-file/ endpoints  will return the newly generated studies as a JSON list. POST /studies/download-file will retrieve _all_ studies (that is, including any previously generated) and return them as a .csv file.
 
-An RA can use the CSV study list to get the baseline and followup study URLs for each participant.
+A research admin can use the CSV study list to distribute the baseline and follow-up study URLs to each participant (at the appropriate times/time intervals).
 
-### 3. Post test results to the server
+### 3. Participants do studies; front-end posts test results to the server
 
-Use POST /tests/ to register a new test result. This should be done by the front-end client every time a participant completes a test. Refer to the example input value and consult the Schemas at the bottom of the OpenAPI page to find out what fields are expected for each different kind of test. The `study_id` field of the test must match the `study_id` of one of the studies previously generated.
+The front-end will use POST /tests/ to register a new test result. This should be done by the front-end client every time a participant completes a test. Refer to the example input value and consult the Schemas at the bottom of the OpenAPI page to find out what fields are expected for each different kind of test. The `study_id` field of the test must match the `study_id` of one of the studies previously generated.
 
-### 4. Retrieve test data
+### 4. Admin retrieves test data
 
-Use GET /tests/ to get test data as a JSON list. Use GET /tests/download-file to get test data as a CSV.
+Through the admin form, the admin can use POST /tests/zip-archive/download-file to get all test data as a ZIP archive of CSV files, or POST /tests/single-test-type/download-file to get data for a single test type as a single CSV. This data can be filtered by participant ID.
+
+It is expected that the participants will take their studies at different, staggered times (as opposed to a coordinated baseline date followed by a coordinated follow-up date), and that the admin(s) will retrieve the data repeatedly and periodically.
