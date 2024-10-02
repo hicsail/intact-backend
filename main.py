@@ -298,7 +298,7 @@ def read_root():
 
 
 @app.post(
-    "/studies/",
+    "/studies",
     response_model=list[Study],
     responses={400: {"model": ErrorMessage}, 401: {"model": ErrorMessage}},
 )
@@ -333,7 +333,7 @@ def create_studies_from_list(
 
 
 @app.post(
-    "/studies/upload-file/",
+    "/studies/upload-file",
     response_model=list[Study],
     responses={400: {"model": ErrorMessage}, 401: {"model": ErrorMessage}},
 )
@@ -454,7 +454,7 @@ def get_studies_as_csv_file(
     return FileResponse("studies.csv")
 
 
-@app.post("/tests/", response_model=Test, responses={400: {"model": ErrorMessage}})
+@app.post("/tests", response_model=Test, responses={400: {"model": ErrorMessage}})
 def insert_test(test: TestIn, response: Response):
     # Starting from the TestIn fields,
     new_test_dict = test.dict()
@@ -587,7 +587,7 @@ def get_single_test_type_as_csv_file(
     return FileResponse("test.csv")
 
 
-@app.get("/admin/", response_class=HTMLResponse)
+@app.get("/admin", response_class=HTMLResponse)
 def admin_form():
     with open("adminpage.html", "r") as f:
         data = f.read()
