@@ -10,6 +10,7 @@ from typing import Annotated, Union
 from zipfile import ZipFile
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, Response, status, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -22,6 +23,9 @@ class Settings(BaseSettings):
     db_name: str = "intact"
 
     admin_password: str = "password"
+
+    cors_frontend_origin: str = "https://intact.sail.codes"
+    cors_localhost_origin: Union[str, None] = None
 
     # In development, read settings from .env.
     # In production, just set environment variables.
@@ -45,6 +49,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.cors_frontend_origin]
+    + ([settings.cors_localhost_origin] if settings.cors_localhost_origin else []),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def clean_up_files():
