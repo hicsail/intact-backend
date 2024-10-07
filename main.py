@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     admin_password: str = "password"
 
     cors_frontend_origin: str = "https://intact.sail.codes"
-    cors_localhost_origin: Union[str, None] = "*"
+    cors_localhost_origin: Union[str, None] = "http://localhost:5173"
 
     # In development, read settings from .env.
     # In production, just set environment variables.
