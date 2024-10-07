@@ -11,6 +11,7 @@ services:
       DB_NAME: ${DB_NAME}
       DB_CONNECTION_STR: ${DB_CONNECTION_STR}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      CORS_FRONTEND_ORIGIN: ${CORS_FRONTEND_ORIGIN}
 
   mongo:
     image: mongo:8

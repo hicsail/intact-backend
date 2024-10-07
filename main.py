@@ -18,13 +18,24 @@ from pymongo import MongoClient
 
 
 class Settings(BaseSettings):
-    hostname: str = "localhost"
+    # HOSTNAME defines the hostname in the study URLs which will be generated
+    # for the participants. It should be the hostname of the front-end.
+    hostname: str = "https://intact.sail.codes"
+
+    # Details for the MongoDB to be used by this server.
     db_connection_str: str = "mongodb://localhost:27017/"
     db_name: str = "intact"
 
+    # ADMIN_PASSWORD is the password that researchers will use to interact
+    # with this server (it is not e.g. a database admin password).
     admin_password: str = "password"
 
+    # Set allowed CORS origins.
+    # CORS_FRONTEND_ORIGIN should be set to the hostname of the front-end.
     cors_frontend_origin: str = "https://intact.sail.codes"
+    # For development purposes, you may want to set CORS_LOCALHOST_ORIGIN.
+    # Note that setting CORS_FRONTEND_ORIGIN *or* CORS_LOCALHOST_ORIGIN to "*"
+    # will allow *all* origins (localhost or otherwise).
     cors_localhost_origin: Union[str, None] = None
 
     # In development, read settings from .env.
