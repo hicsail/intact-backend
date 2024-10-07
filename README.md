@@ -77,3 +77,11 @@ The front-end will use POST /tests/ to register a new test result. This should b
 Through the admin form, the admin can use POST /tests/zip-archive/download-file to get all test data as a ZIP archive of CSV files, or POST /tests/single-test-type/download-file to get data for a single test type as a single CSV. This data can be filtered by participant ID.
 
 It is expected that the participants will take their studies at different, staggered times (as opposed to a coordinated baseline date followed by a coordinated follow-up date), and that the admin(s) will retrieve the data repeatedly and periodically.
+
+# Developer notes
+
+## Authentication and Authorization
+
+-  Admin authorization: For admin-facing endpoints (everything except POST /tests and GET /studies/{study\_id}), we use a 'password' field in the body of a POST request.
+-  User (study participant) authentication: For client-facing endpoints (POST /tests and GET /studies/{study\_id}), we take a valid `study_id` to be sufficient.
+-  Client authentication: As this server expects to communicate with only one front-end, we rely on HTTPS + CORS for client auth.

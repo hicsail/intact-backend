@@ -83,13 +83,6 @@ def clean_up_files():
             os.remove(f)
 
 
-# Note on authentication and authorization:
-# For authorization for the admin-facing endpoints (everything except POST /tests/),
-# use a 'password' field in the body of a POST request.
-# For authentication for the front-end client (POST /tests/),
-# the study_id is sufficient.
-
-
 def check_admin_password(path_op):
     @functools.wraps(path_op)
     async def wrapper(**kwargs):
@@ -306,6 +299,27 @@ result_type_to_test_type = {
 @app.get("/")
 def read_root():
     return "This is the INTACT backend. Please visit /docs if you are a developer or /admin if you are a researcher."
+
+
+@app.get(
+    "/studies/{study_id}",
+    responses={404: {"model": ErrorMessage}},
+)
+def get_study(study_id: str):
+    """
+    Endpoint intended for use by the front-end to check that a given study_id is valid.
+    Does not list all study_ids.
+    """
+    # Dev note: Securing this endpoint against e.g. enumeration attacks
+    # does not make sense unless the POST /tests endpoint is similarly secured.
+    studies = db.get_collection("studies")
+    study = studies.find_one({"study_id": study_id}, {"study_type": 1, "_id": 0})
+    if not study:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"message": f"study_id {study_id} does not exist"},
+        )
+    return study
 
 
 @app.post(
