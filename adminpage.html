@@ -77,6 +77,12 @@
         background: #ebebd3;
       }
 
+      #password-box {
+        display: flex;
+        justify-content: center;
+        text-align: left;
+      }
+
       #header-spacer {
         height: 3em;
       }
@@ -100,11 +106,17 @@
     <h1>INTACT Admin Interface</h1>
 
     <form method="post">
-      <div>
-        <label for="password"
-          >Admin Password (required for all operations):
-        </label>
-        <input type="password" name="password" id="password" required />
+      <div id="password-box">
+        <div>
+          <label for="password"
+            >Admin Password (required for all operations):
+          </label>
+          <input type="password" name="password" id="password" required />
+          <p>
+            No need to enter/submit - this password will be used for each of the
+            sections below.
+          </p>
+        </div>
       </div>
 
       <div class="topicbox">
@@ -112,8 +124,12 @@
         <p>
           The first step is to generate studies for each participant. Each study
           is linked to a participant and can be a baseline or a follow-up study.
-          So, for example, if you would like each participant to be assigned 1
-          baseline and 2 follow-up studies, enter 1 and 2 below.
+          <strong
+            >So, for example, if you would like each participant to be assigned
+            1 baseline and 2 follow-up studies, enter 1 and 2 below.</strong
+          >
+          If left blank, the default of 1 baseline and 1 follow-up will be
+          generated.
         </p>
         <ul>
           <li>
@@ -206,13 +222,16 @@
         </div>
         <p>
           After you submit, you will see a JSON response listing the studies you
-          just created. Navigate back to this page for the next steps. If you
-          later find you need to add more participants, or if a participant had
-          a technical problem and you would like to generate a new study for
-          them, you can (for example) set "baselines per participant" to 1 and
-          "followups per participant" to 0, and enter just one participant_id
-          "abc12". This would generate just one new baseline study associated
-          with participant "abc12".
+          just created.
+          <strong>Navigate back to this page for the next steps.</strong>
+        </p>
+        <p>
+          If you later find you need to add more participants, or if a
+          participant had a technical problem and you would like to generate a
+          new study for them, you can (for example) set "baselines per
+          participant" to 1 and "followups per participant" to 0, and enter just
+          one participant_id "abc12". This would generate just one new baseline
+          study associated with participant "abc12".
         </p>
       </div>
       <div class="topicbox">
@@ -282,7 +301,7 @@
                     Choice Reaction Time
                   </option>
                   <option value="visual_paired_associates">
-                    Visual Pairerd Associates
+                    Visual Paired Associates
                   </option>
                   <option value="digit_symbol_matching">
                     Digit Symbol Matching
