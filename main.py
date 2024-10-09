@@ -18,9 +18,10 @@ from pymongo import MongoClient
 
 
 class Settings(BaseSettings):
-    # HOSTNAME defines the hostname in the study URLs which will be generated
-    # for the participants. It should be the hostname of the front-end.
-    hostname: str = "https://intact.sail.codes"
+    # STUDY_URL_PREFIX will be combined with study_ids to make the study_urls
+    # that are given to participants. Usually this is the hostname of the
+    # front-end, plus any necessary path prefix.
+    study_url_prefix: str = "https://intact.sail.codes"
 
     # Details for the MongoDB to be used by this server.
     db_connection_str: str = "mongodb://localhost:27017/"
@@ -435,8 +436,7 @@ def create_studies(
             study_id = str(ObjectId())
             new_baseline_study = Study(
                 study_id=study_id,
-                # TODO: Confirm URL structure
-                url=settings.hostname.rstrip("/") + "/" + str(study_id),
+                url=settings.study_url_prefix.rstrip("/") + "/" + str(study_id),
                 participant_id=pid,
                 study_type=StudyType.BASELINE,
             )
@@ -445,8 +445,7 @@ def create_studies(
             study_id = str(ObjectId())
             new_followup_study = Study(
                 study_id=study_id,
-                # TODO: Confirm URL structure
-                url=settings.hostname.rstrip("/") + "/" + str(study_id),
+                url=settings.study_url_prefix.rstrip("/") + "/" + str(study_id),
                 participant_id=pid,
                 study_type=StudyType.FOLLOWUP,
             )

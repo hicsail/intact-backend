@@ -7,7 +7,7 @@ services:
     ports:
       - "1333:80"
     environment:
-      HOSTNAME: ${HOSTNAME}
+      STUDY_URL_PREFIX: ${STUDY_URL_PREFIX}
       DB_NAME: ${DB_NAME}
       DB_CONNECTION_STR: ${DB_CONNECTION_STR}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
