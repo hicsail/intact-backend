@@ -538,7 +538,7 @@ def write_single_test_type_to_csv_file(
     # Also normalize the study fields into the fieldnames.
     fieldnames ^= Study.model_fields.keys()
 
-    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
     writer.writeheader()
 
     for test in all_tests:
