@@ -70,7 +70,7 @@ A research admin can use the CSV study list to distribute the baseline and follo
 
 ### 3. Participants do studies; front-end posts test results to the server
 
-The front-end will use POST /tests/ to register a new test result. This should be done by the front-end client every time a participant completes a test. Refer to the example input value and consult the Schemas at the bottom of the OpenAPI page to find out what fields are expected for each different kind of test. The `study_id` field of the test must match the `study_id` of one of the studies previously generated.
+The front-end will use POST /tests to register a new test result. This should be done by the front-end client every time a participant completes a test. Refer to the example input value and consult the Schemas at the bottom of the OpenAPI page to find out what fields are expected for each different kind of test. The `study_id` field of the test must match the `study_id` of one of the studies previously generated.
 
 ### 4. Admin retrieves test data
 
@@ -79,6 +79,10 @@ Through the admin form, the admin can use POST /tests/zip-archive/download-file 
 It is expected that the participants will take their studies at different, staggered times (as opposed to a coordinated baseline date followed by a coordinated follow-up date), and that the admin(s) will retrieve the data repeatedly and periodically.
 
 # Developer notes
+
+## Integration with INTACT front-end
+
+The front-end repository is [here](https://github.com/hicsail/intact-app). The front-end needs to be configured with this server's POST /tests endpoint to register test results (see #3 above); this is done by setting the `VITE_TEST_ENDPOINT` environment variable. An example value to set this to would be `https://intact-backend.sail.codes/tests`. Make sure that the URL protocol is **https** and that there is **no trailing slash** on the URL - any automatic redirects will cause problems with CORS preflight requests.
 
 ## Authentication and Authorization
 
