@@ -4,8 +4,15 @@ This is the backend server for INTACT. It uses FastAPI and MongoDB.
 
 ## Configuration
 
-Copy `.env.example` to `.env` and edit the file with your own configuration values.
+During local development, copy `.env.example` to `.env` and edit the file with your own configuration values.
+
+On your deployment, set environment variables on the containers using the method appropriate to your deployment platform (e.g. config map, `stack.env`, etc.). See `compose.yml`.
+
 For documentation and defaults for each variable, see the `Settings` class in `main.py`.
+
+#### Admin password
+
+For example, to change the admin password, set the `ADMIN_PASSWORD` environment variable.
 
 ## Set up for local dev
 
