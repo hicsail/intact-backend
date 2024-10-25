@@ -4,6 +4,7 @@ import datetime
 import enum
 import functools
 import os
+import random
 from bson.objectid import ObjectId
 from contextlib import asynccontextmanager
 from typing import Annotated, Union
@@ -15,6 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pymongo import MongoClient
+from sqids import Sqids
 
 
 class Settings(BaseSettings):
@@ -48,6 +50,8 @@ settings = Settings()
 
 client = MongoClient(settings.db_connection_str)
 db = client.get_database(settings.db_name)
+
+sqids = Sqids(alphabet="abcdefghijklmnopqrstuvwxyz", min_length=4)
 
 
 @asynccontextmanager
@@ -392,6 +396,24 @@ async def create_studies_via_file_upload(
     )
 
 
+def create_study_id():
+    """
+    PI would like to have short study IDs that are easy to hand-copy.
+    Since only a small number of studies is expected to be created - in the low
+    hundreds - and study creation happens in infrequent batches, we will just
+    generate random ids and manually check for collisions.
+    At which point, for good measure, let's make them strictly lowercase
+    letters and filter for accidental profanities.
+    """
+    studies = db.get_collection("studies")
+
+    new_study_id = sqids.encode([random.randint(0, 10_000)])
+    while list(studies.find({"study_id": new_study_id})):
+        new_study_id = sqids.encode([random.randint(0, 10_000)])
+
+    return new_study_id
+
+
 def create_studies(
     participant_ids: list[str],
     response,
@@ -433,7 +455,7 @@ def create_studies(
             )
 
         for b in range(baselines_per_participant):
-            study_id = str(ObjectId())
+            study_id = create_study_id()
             new_baseline_study = Study(
                 study_id=study_id,
                 url=settings.study_url_prefix.rstrip("/") + "/" + str(study_id),
@@ -442,7 +464,7 @@ def create_studies(
             )
             records_to_insert.append(new_baseline_study.dict())
         for f in range(followups_per_participant):
-            study_id = str(ObjectId())
+            study_id = create_study_id()
             new_followup_study = Study(
                 study_id=study_id,
                 url=settings.study_url_prefix.rstrip("/") + "/" + str(study_id),
