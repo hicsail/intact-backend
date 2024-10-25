@@ -450,11 +450,14 @@ def create_studies(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"message": "Received empty participant list"},
         )
-    if len(participant_ids) > 999:
+    if (
+        len(participant_ids) * (baselines_per_participant + followups_per_participant)
+        > 1000
+    ):
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
-                "message": "Participant list too long; please contact SAIL for assistance."
+                "message": "Too many studies requested, or too many empty lines in file; please contact SAIL for assistance."
             },
         )
 
