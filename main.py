@@ -253,10 +253,6 @@ class TestIn(BaseModel):
     time_started: datetime.datetime
     time_elapsed_milliseconds: int  # or timedelta, if desired...
     device_info: str
-    # Optional field for potential msgs like "participant timed out" (added by frontend/client) or
-    # "could not find study" (added by backend/server) or any other such.
-    # (So the server - this codebase - should append to this field, not replace it.)
-    notes: Union[str, None] = None
     result: Union[
         list[VisualPairedAssociatesResult],
         list[ChoiceReactionTimeResult],
