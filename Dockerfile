@@ -24,8 +24,9 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 COPY ./main.py /code/main.py
 COPY ./adminpage.html /code/adminpage.html
 
-RUN adduser fastapi
-RUN chown fastapi /code
-USER fastapi
+# The fastapi process will need to write temporary .csv files in this dir.
+# To make this possible on an OpenShift deployment, the dir needs to
+# be owned by the root group (already the case here) and be r/w-able by same:
+RUN chmod g+rw /code
 
 CMD ["fastapi", "run", "main.py", "--port", "8000"]
