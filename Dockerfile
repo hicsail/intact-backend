@@ -24,4 +24,8 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 COPY ./main.py /code/main.py
 COPY ./adminpage.html /code/adminpage.html
 
+RUN adduser fastapi
+RUN chown fastapi /code
+USER fastapi
+
 CMD ["fastapi", "run", "main.py", "--port", "8000"]
