@@ -5,7 +5,7 @@ services:
   intact-backend:
     image: hicsail/intact-backend:main
     ports:
-      - "1333:80"
+      - "1333:8000"
     environment:
       STUDY_URL_PREFIX: ${STUDY_URL_PREFIX}
       DB_NAME: ${DB_NAME}
