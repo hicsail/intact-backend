@@ -43,6 +43,20 @@ View admin page: go to http://localhost:8000/admin
 
 You will probably want to delete/comment out the `backup` service for this use case.
 
+## Deploy on OpenShift
+
+The general outline is as follows. Adjust and scale as appropriate. It will be helpful to refer to `compose.yml` for configuration values, mount paths, etc.
+
+1. Create an Image pull secret with Dockerhub credentials.
+1. Create a Secret with an AWS access key for making volume backups.
+1. Create a ConfigMap for the non-secret configuration for the backup service.
+1. Make a persistent volume claim for the backend Mongo data; make sure it gets bound.
+1. Deploy docker.io/mongo:8.0.3; mount the Mongo data volume; do not set up an external route.
+1. On the same deployment as the Mongo service, deploy offen/docker-volume-backup:v2.43.0 and mount the Mongo data volume, read-only.
+1. Create a ConfigMap for the intact-backend configuration.
+1. Deploy docker.io/hicsail/intact-backend:main.
+1. If desired, set up a route for the intact-backend service and any necessary DNS records.
+
 
 # Workflow
 
